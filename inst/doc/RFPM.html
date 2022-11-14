@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Brian Church and Claire Detering" />
+
+
+<title>RFPM</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+
+
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">RFPM</h1>
+<h4 class="author">Brian Church and Claire Detering</h4>
+
+
+
+<p><code>RFPM</code> provides an implementation of the Floating
+Percentile Model (FPM) in the R statistical environment. The FPM was
+originally developed by others on behalf of the Washington State
+Department of Ecology (Avocet 2003) and has since been recommended for
+use in Washington, Oregon, and Idaho (Ecology 2011). The FPM currently
+exists as a Microsoft Excel macro (written with Visual Basic for
+Applications). <code>RFPM</code> represents an independent effort to
+port the FPM to R with the purpose of:<br />
+- correcting a data handling error<br />
+- streamlining the chemical selection and sediment quality benchmark
+calculation procedures<br />
+- providing new tools to rapidly evaluate and refine benchmarks<br />
+- improving several aspects of the FPM algorithm<br />
+- improving the availability, accessibility, and transparency of the FPM
+tool</p>
+<p>The purpose of this vignette is to lead the reader through an example
+analysis of real-world data using the core functions of
+<code>RFPM</code> rather than go into great detail on any particular
+function. For more function details, see the help files by using
+<code>?</code> or <code>help()</code> (or by navigating in RStudio to
+the Packages tab, selecting RFPM from the list of available packages,
+and then selecting the function of interest).</p>
+<div id="functionality" class="section level2">
+<h2>Functionality</h2>
+<p>The main user interface within <code>RFPM</code> is via the
+<code>FPM</code> function. To use this function, the user must first
+prepare a sediment chemistry and toxicity data.frame that contains one
+or more chemical columns and a single toxicity column called
+<code>Hit</code>. Several example datasets are provided with
+<code>RFPM</code> with this structure, for example
+<code>h.northport</code>, which we will evaluate repeatedly in this
+vignette. Other datasets include the empirical <code>c.northport</code>
+and <code>h.tristate</code> as well as simulated FPM data
+<code>perfect</code>, <code>lowNoise</code>, and
+<code>highNoise</code>.</p>
+<p>Other key functions that the user is directed to include
+<code>optimFPM</code>, <code>cvFPM</code>, and <code>chemVI</code> which
+can help the user to explore and refine FPM inputs and optimize FPM
+outputs.</p>
+</div>
+<div id="case-study---amphipod-toxicity-in-northport-wa-sediments" class="section level2">
+<h2>Case study - Amphipod toxicity in Northport, WA sediments</h2>
+<p>In this vignette, we focus on evaluating a case study dataset called
+<code>h.northport</code>, which includes a data.frame of bulk sediment
+chemistry metals concentrations (mg/kg) and <code>Hit</code> data. Hits
+are logical results indicating whether a particular sample was deemed
+toxic (<code>TRUE</code>) or not (<code>FALSE</code>) based on the
+<em>Hyalella azteca</em> biomass endpoint in 28-day laboratory
+exposures. The definition of a toxic Hit is up to the practitioner and
+not a part of the model. Data must be input to <code>FPM</code> in a
+cross-tab (wide) format, meaning each sediment chemical has a unique
+column and each sample has just one row.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(h.northport)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        Al    As     Cu    Cd    Cr     Fe    Pb    Hg    Ni    Zn Organism</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 442  8640  8.38  396.0 3.740  34.6  56900 226.0 0.159 13.20  4300       HA</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 443  5890  7.69  167.0 4.860  18.7  28500 219.0 0.247 14.00  1780       HA</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 444 10200 11.10  913.0 0.727  50.8  83300 151.0 0.051  9.91  6490       HA</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 445 15800 14.60 1630.0 0.688 100.0 161000 211.0 0.016 13.10 13600       HA</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 446  5950  2.55   30.4 0.721  11.5  14600  63.8 0.020 11.20   484       HA</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 447  8370  8.74  644.0 0.774  39.3  62400  99.2 0.027  9.68  4740       HA</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Meas_Day Endpoint   Hit</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 442       28  Biomass FALSE</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 443       28  Biomass FALSE</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 444       28  Biomass  TRUE</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 445       28  Biomass  TRUE</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 446       28  Biomass FALSE</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 447       28  Biomass FALSE</span></span></code></pre></div>
+<p>To run <code>FPM</code>, you will need to specify, at a minimum, the
+data.frame object and the column names associated with sediment
+chemistry data. As noted above, <code>FPM</code> also requires that the
+data.frame include a column called <code>Hit</code>. Columns other than
+<code>Hit</code> and those specified using the <code>paramList</code>
+argument are ignored.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>p.northport <span class="ot">&lt;-</span> <span class="fu">names</span>(h.northport)[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>] <span class="do">## all chemical column names</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">FPM</span>(<span class="at">data =</span> h.northport, <span class="at">paramList =</span> p.northport) <span class="do">## minimum input - dataset and chemical column names</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $FPM</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Cu   Cr    Fe  Zn FN_crit TP FN TN FP   pFN   pFP    HR    NR  PHR   PNR</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 2740 26.7 27400 738     0.2 49 12 35 51 0.197 0.593 0.803 0.407 0.49 0.745</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    FHR   FNR    OR</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 0.51 0.255 0.571</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $chemDensity</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         Cu    Cr Fe    Zn</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 1.36e-05 0.988  1 0.991</span></span></code></pre></div>
+<p>The output of <code>FPM</code> displays three types of data:<br />
+- The sediment quality benchmark for each of the chemicals selected by
+<code>FPM</code> as significant (meaning that concentrations when
+<code>Hit == TRUE</code> are significantly greater than when
+<code>Hit == FALSE</code>).<br />
+- Selected <code>FN_crit</code> value, the user-defined limit on
+benchmark conservatism (default = <code>0.2</code>)<br />
+- Classification metrics: e.g., false negatives rate (<code>pFN</code>),
+false positive rate (<code>pFP</code>), and overall reliability
+(<code>OR</code>)</p>
+<p>This is technically all that was required to run the FPM on this
+example dataset. There is of course a lot going on behind the scenes.
+Functions that were used within FPM include:<br />
+- <code>chemSig</code>: chemical selection algorithm, which evaluates
+distribution assumptions of normality and equal variance, then applies
+appropriate hypothesis test methods to identify significant differences
+between concentrations when <code>Hit == TRUE</code> and
+<code>Hit == FALSE</code>. The output of <code>chemSig</code> is a
+logical vector indicating which chemicals are significant (therefore
+selected by <code>FPM</code> for generating benchmarks).<br />
+- <code>chemSigSelect</code>: a function that uses <code>chemSig</code>
+but instead returns the chemistry data for significant chemicals and has
+options for plotting chemistry data distributions to compare
+<code>Hit == TRUE</code> and <code>Hit == FALSE</code> subsets. Setting
+<code>plot = TRUE</code> in <code>FPM</code> turns on plot outputs (by
+passing that argument to <code>chemSigSelect</code>).</p>
+<p>As an example, see the following figures generated by
+<code>plot.chemSigSelect</code> (identical to those generated by
+<code>FPM</code> when <code>plot = TRUE</code>) for a significant
+chemical (<code>Cr</code>), shown with blue points, and a
+non-significant chemical (<code>Al</code>), shown with green points:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">chemSigSelect</span>(h.northport[, <span class="fu">c</span>(<span class="st">&quot;Al&quot;</span>, <span class="st">&quot;Cr&quot;</span>, <span class="st">&quot;Hit&quot;</span>)], <span class="at">paramList =</span> <span class="fu">c</span>(<span class="st">&quot;Al&quot;</span>, <span class="st">&quot;Cr&quot;</span>)), <span class="at">type =</span> <span class="st">&quot;boxplot&quot;</span>)</span></code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --><img src="data:image/png;base64,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" /><!-- --></p>
+<p>There are also many arguments that can be adjusted in
+<code>FPM</code> that affect how <code>chemSig</code> and
+<code>chemSigSelect</code> function or how the FPM algorithm itself
+functions. Users can adjust the test methods/assumptions for selecting
+chemicals, force the FPM to accept the assumptions of the original
+Excel-based function (i.e., <code>ExcelMode == TRUE</code>), etc.</p>
+<p>See <code>?FPM</code> and <code>?chemSig</code> for more
+information.</p>
+</div>
+<div id="optimizing-fpm-inputs" class="section level2">
+<h2>Optimizing FPM Inputs</h2>
+<p>In <code>RFPM</code>, there are currently two optimization functions
+available:<br />
+- <code>optimFPM</code> is intended to find an optimal input (to
+<code>FPM</code>) of the <code>FN_crit</code> and/or <code>alpha</code>
+parameter. These optimal levels are based on the full dataset (input as
+<code>data</code> argument) and, therefore, may be over-specific to that
+data. The <code>FN_crit</code> and <code>alpha</code> arguments should
+be input either as ranges or single values depending on how you want the
+optimization to run. Inputting a single value for <code>FN_crit</code>
+and a range for <code>alpha</code> would optimize the <code>alpha</code>
+value only and vice-versa. Inputting ranges for both values results in
+slightly more complex output owing to the 2-dimensional
+optimization.<br />
+- <code>cvFPM</code> is currently parameterized to optimize
+<code>FN_crit</code> inputs using a cross-validation (CV) approach. The
+result is a “best” value that tries to account for uncertainty in future
+data. The user can adjust the <code>k</code> parameter to change the
+number of folds in the CV algorithm. This affects the smoothness of the
+mean/median optimization curves by generating more hypothetical
+datapoints; it also is likely to expand the min/max range of
+optimization values by providing more chances for extreme outcomes. By
+using larger training datasets (i.e., with larger <code>k</code>
+inputs), the CV-based optimum will converge toward the empirical
+optimization curve generated by <code>optimFPM</code> (and shown in the
+output of <code>cvFPM</code>). The value of <code>k</code> is
+constrained (e.g., the leave-one-out CV method is impossible here) by
+the requirement to have at least 3 Hit and 3 No-hit data in the test and
+training datasets, else <code>FPM</code> and <code>chemSig</code> cannot
+run within the <code>cvFPM</code> algorithm. Thus, we recommend not
+increasing <code>k</code> by a large amount unless <code>data</code> is
+also very large.</p>
+<p>This is an example of the empirical optimization approach with
+<code>optimFPM</code>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="do">## one-way optimization of the FN Limit - vertical lines show best values based on two metrics</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">optimFPM</span>(h.northport, p.northport, <span class="at">FN_crit =</span> <span class="fu">seq</span>(<span class="fl">0.1</span>, <span class="fl">0.9</span>, <span class="fl">0.05</span>), <span class="at">alpha =</span> <span class="fl">0.05</span>)</span></code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<pre><code>#&gt; balance_FN.FP        max_OR 
+#&gt;           0.4           0.6
+
+## two-way optimization of both FN Limit and alpha - black squares show best values based on two metrics
+optimFPM(h.northport, p.northport, 
+         FN_crit = seq(0.1, 0.9, 0.05), 
+         alpha = seq(0.01, 0.2, 0.01))</code></pre>
+<p><img src="data:image/png;base64,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" /><!-- --><img src="data:image/png;base64,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" /><!-- --></p>
+<pre><code>#&gt;         balance_FN.FP max_OR
+#&gt; FN_crit          0.40   0.25
+#&gt; alpha            0.01   0.11</code></pre>
+<p>The resulting plots show a mix of potential outcomes. When only one
+parameter is being optimized (i.e.,
+<code>length(alpha) == 1 | length(FN_crit) == 1</code>), then the first
+plot is produced, showing the rates of FNs, FPs, and OR. Vertical lines
+identify optimal values: either the highest OR value (lowest
+<code>alpha</code> or <code>FN_crit</code> value when there are ties) or
+the point at which the FN and FP rates are most similar (i.e., balanced
+under- and overprediction of toxicity).</p>
+<p>In the case that two parameters are being optimized together (i.e.,
+<code>length(alpha) &gt; 1 &amp; length(FN_crit) &gt; 1</code>), then a
+matrix of results is provided representing with heat colors to indicate
+the optimization outcome (yellow = suboptimal, red = optimal). Squares
+indicate the selected values, which are also output into the console. A
+black square indicates which value applies to the stated optimization
+statistic; the gray square is the value selected according to the
+alternative statistic (i.e., the second figure).</p>
+<p>This is an example of the CV-based optimization approach with
+<code>cvFPM</code> and 10-folds:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cvFPM</span>(h.northport, p.northport, <span class="at">k =</span> <span class="dv">10</span>, <span class="at">FN_crit =</span> <span class="fu">seq</span>(<span class="fl">0.1</span>, <span class="fl">0.9</span>, <span class="fl">0.05</span>), <span class="at">alpha =</span> <span class="fl">0.05</span>)</span></code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --><img src="data:image/png;base64,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" /><!-- --></p>
+<pre><code>#&gt; $optim_FN
+#&gt; balance_FN.FP        max_OR 
+#&gt;          0.50          0.65</code></pre>
+<p>Two figures are generated showing the optimization statistics from
+multiple CV runs (as well as the empirical result from
+<code>optimFPM</code> - the “actual” value) and how stable the
+classification metrics may be at various model inputs. The first figure
+shows the optimization of the overall reliability; the second reduces
+the difference between FP and FN rates, similar to
+<code>optimFPM</code>. Optimized outputs attempt to account for the
+mean, median, maximum, and minimum results (among CV runs)
+altogether.</p>
+<p>Based on the output from either <code>optimFPM</code> or
+<code>cvFPM</code>, the practitioner may decide to adjust and rerun the
+<code>FPM</code> using optimized inputs. The decision of whether this is
+appropriate will depend on the specific management scenario. For
+example, the optimal FN Limit could end up being 80%, but that lack of
+conservatism may be unacceptable to a regulator. Similarly, the optimal
+alpha could be 0.5, meaning that the regulator would need to accept a
+50% probability of error when selecting significant chemicals; this is a
+very high uncertainty, 10-fold higher than typical. Regardless,
+optimization provides useful context to the <code>RFPM</code> user.
+Using both <code>optimFPM</code> and <code>cvFPM</code> is recommended,
+because they can provide somewhat different or complementary results
+that facilitate decision making about subsequent <code>FPM</code>
+runs.</p>
+</div>
+<div id="variable-importance" class="section level2">
+<h2>Variable Importance</h2>
+<p>The <code>chemVI</code> function outputs several potentially useful
+metrics for evaluating individual metals in the sediment quality
+benchmark set. These metrics are:<br />
+- <code>chemDensity</code>: how little the benchmark “floated” within
+the FPM algorithm. High density values correspond to benchmarks that
+remained at a relatively low concentrations (i.e., did not float up),
+suggesting relative importance<br />
+- <code>MADP</code>: average change in other chemical’s benchmarks
+resulting from removal of a chemical from <code>data</code><br />
+- <code>dOR</code>: change in the overall reliability resulting from
+removal of the chemical from <code>data</code></p>
+<p>The <code>MADP</code> and <code>dOR</code> metrics are the more
+useful for identifying important chemicals; for example:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">chemVI</span>(h.northport, p.northport)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    chemDensity   MADP dOR</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Cu       0.001   0.00 0.0</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Cr      98.800 996.00 2.0</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Fe     100.000   8.52 0.0</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Zn      99.100  32.50 0.6</span></span></code></pre></div>
+<p>Here we see that copper (<code>Cu</code>) has an <code>MADP</code>
+and <code>dOR</code> of <code>0</code>, meaning that there was no change
+in the benchmarks or their ability to predict toxicity after removing
+copper. Clearly copper is, therefore, not important in this case and
+could be excluded from further consideration. <strong>However, that
+isn’t to say that copper isn’t related to toxicity; it’s very important
+to keep in mind that the FPM is a classification tool that attempts to
+accurately predict</strong> <code>Hit</code> <strong>values</strong>.
+The significant chemicals in this list are mostly well correlated, so
+toxicity could be related to one, all, or perhaps none of the chemicals
+(i.e., an unmeasured but related chemical or non-chemical stressor). The
+inclusion of new chemicals in (or exclusion of important chemicals from)
+<code>data</code> can result in markedly different benchmarks and
+<code>chemVI</code> metrics (particularly for the
+<code>chemDensity</code> metric). Therefore, we recommend pre-screening
+<code>data</code> to remove chemicals that are unlikely to cause
+toxicity (e.g., due to poor bioavailability, low toxicity, or uniformly
+low concentrations). These chemicals, while potentially “significant”
+with respect to having higher concentrations when
+<code>Hit == TRUE</code>, may lead to problems down the road when
+predicting toxicity more generally. In other words, try to the extent
+possible to establish a weight of evidence pointing toward causation
+rather than letting pure correlation lead your analysis. In the current
+example, we perhaps should have pre-screened chemicals like Fe and Al,
+which we expected to have low toxicity at natural levels. Al was
+ultimately screened out by <code>FPM</code> as non-significant, but Fe
+was significant and retained.<br />
+<code>chemVI</code> can be helpful with respect to developing a
+parsimonious benchark set by identifying benchmarks that do not affect
+prediction at the site. In our <code>h.northport</code> example,
+<code>Cu</code> and <code>Fe</code> will be removed because they don’t
+affect toxicity predictions (either positively or negatively). Whenever
+any chemicals would be removed from consideration through an iterative
+FPM benchmark development process, <code>FPM</code> must be rerun to
+generate new benchmarks. Compare the two outputs:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">FPM</span>(<span class="at">data =</span> h.northport, <span class="at">paramList =</span> p.northport)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $FPM</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Cu   Cr    Fe  Zn FN_crit TP FN TN FP   pFN   pFP    HR    NR  PHR   PNR</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 2740 26.7 27400 738     0.2 49 12 35 51 0.197 0.593 0.803 0.407 0.49 0.745</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    FHR   FNR    OR</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 0.51 0.255 0.571</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $chemDensity</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         Cu    Cr Fe    Zn</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 1.36e-05 0.988  1 0.991</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="fu">FPM</span>(<span class="at">data =</span> h.northport, <span class="at">paramList =</span> <span class="fu">c</span>(<span class="st">&quot;Cr&quot;</span>, <span class="st">&quot;Zn&quot;</span>))</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $FPM</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Cr  Zn FN_crit TP FN TN FP   pFN   pFP    HR    NR  PHR   PNR  FHR   FNR</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 26.1 910     0.2 49 12 35 51 0.197 0.593 0.803 0.407 0.49 0.745 0.51 0.255</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;      OR</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 0.571</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $chemDensity</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Cr    Zn</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  1 0.983</span></span></code></pre></div>
+<p>For the FPM benchmarks generated for <code>h.northport</code>, the
+<code>MADP</code> for Fe was &gt;0, and the benchmark for Zn shifted
+after removing Fe from consideration. Although the benchmark changed,
+the classification errors did not, as reflected by the unchanged
+<code>OR</code>. The final FPM benchmark set including only
+<code>Cr</code> and <code>Zn</code> is, therefore, the most
+parsimonious, by which we mean that it classifies <code>Hit</code>
+values just as accurately as the larger set of benchmarks but does so
+with fewer benchmarks.</p>
+<p>You might have noticed that we didn’t use the optimized inputs in the
+example above for <code>chemVI</code>. We omitted that to provide an
+example where relatively unimportant chemicals could be screened out
+using the metrics generated by <code>chemVI</code>. If we instead change
+the inputs of <code>chemVI</code> to the optimized <code>FN_crit</code>
+and <code>alpha</code> (using the <code>max_OR</code> optimization
+approach), the <code>chemVI</code> results look like this instead:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">FPM</span>(h.northport, p.northport, <span class="at">FN_crit =</span> <span class="fl">0.25</span>, <span class="at">alpha =</span> <span class="fl">0.11</span>)<span class="sc">$</span>FPM</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;      Al  Cu  Cr     Fe  Pb   Zn FN_crit TP FN TN FP   pFN   pFP    HR    NR</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 24400 131 131 247250 904 1320    0.25 46 15 53 33 0.246 0.384 0.754 0.616</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     PHR   PNR   FHR   FNR    OR</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 0.582 0.779 0.418 0.221 0.673</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="fu">chemVI</span>(h.northport, p.northport, <span class="at">FN_crit =</span> <span class="fl">0.25</span>, <span class="at">alpha =</span> <span class="fl">0.11</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    chemDensity  MADP  dOR</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Al      60.200 435.0 12.2</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Cu      99.500  13.4  3.4</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Cr       0.512   0.0  0.0</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Fe       1.060   0.0  0.0</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Pb       0.090   0.0  0.0</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Zn     100.000  22.1 13.6</span></span></code></pre></div>
+<p>In this case, adjusting alpha has allowed for 2 new chemicals to be
+added, Al and Pb, which were not selected when
+<code>alpha = 0.05</code>. After including these chemicals (and slightly
+adjusting the <code>FN_crit</code>), the final <code>OR</code> increased
+to 67%, a 10% improvement in benchmark accuracy over the default values
+(not shown). Based on the results of <code>chemVI</code> shown above,
+there is a marked shift in the relative importance of metals for
+toxicity predictions. Removing any of the chemicals would result in a
+roughly 10% reduction in accuracy (based on the <code>dOR</code>
+metric), and removing <code>Cu</code> now would have an effect on the
+other benchmarks values (as shown by the <code>MADP</code> metric
+&gt;0). The <code>chemDensity</code> value for <code>Cr</code> has
+dropped to &lt;1%, meaning that the benchmark is now close to the
+maximum possible value, whereas it had one of the highest
+<code>chemDensity</code> values before.</p>
+<p>As you can see, variable importance is highly dependent on the
+<em>set</em> of benchmarks, not just individual benchmarks in isolation.
+The addition of new chemicals had a big impact not only on the relative
+importance of each chemical but the overall reliability of the set of
+chemicals and on the FPM benchmark values themselves.</p>
+</div>
+<div id="notes-on-benchmark-applications-and-interpretation" class="section level2">
+<h2>Notes on Benchmark Applications and Interpretation</h2>
+<p>We want to emphasize several findings from our analyses of the
+characteristics, behavior, and sensitivity of the <code>FPM</code> (the
+subject of two anticipated manuscripts).</p>
+<ol style="list-style-type: decimal">
+<li><p>FPM benchmarks should be treated as a <em>set</em> of values, not
+values to be used singularly or mixed and matched between runs of the
+<code>FPM</code> using different species, toxicity test endpoints,
+sites, etc. There may be a desire or an inclination to select the most
+sensitive species and test endpoints among chemicals. Doing so, however,
+would invalidate the various assumptions made when generating FPM
+benchmarks, including the projected FN Limit (i.e., <code>pFN</code>)
+and the accuracy of benchmarks (i.e., <code>OR</code>). If there are
+multiple species that need to be accounted for by the model, consider
+different approaches to defining <code>Hit</code> values that capture
+multiple species and/or endpoints rather prior to running
+<code>FPM</code>. The final set of FPM benchmarks should then be used as
+a group to predict Hits. If highly protective benchmarks are desired,
+then we recommend running the <code>FPM</code> for all species and
+endpoints of interest, selecting the endpoint with the greatest degree
+of effect, and then either running the <code>FPM</code> using that
+endpoint to define <code>Hits</code>, or, alternatively, running
+<code>FPM</code> on all endpoints and selecting theh single lowest set
+of benchmarks among endpoints. Lastly, the <code>FN_crit</code> input
+(i.e., FN Limit) can be decreased to increase benchmark conservatism (at
+the possible expense of accuracy).</p></li>
+<li><p>FPM benchmarks should be considered as predictive of toxicity
+<em>classifications</em> (i.e., <code>Hit</code> values) rather than
+continuous toxicity test results (e.g., 10% mortality, 27% biomass,
+etc.). For this reason, we would generally argue against the application
+of FPM benchmarks within a Natural Resource Damage Assessment (NRDA)
+context. We recognize that future approaches might be proposed for
+applying FPM benchmarks in a NRDA context; while theoretically possible,
+such attempts should be considered carefully, particularly with regard
+to how Hits are defined (and whether the definition reasonably
+corresponds with definitions of injury).</p></li>
+<li><p>FPM benchmarks are most powerful when they are site-specific. By
+using site toxicity and sediment chemistry data, and by implicitly
+considering factors like bioavailability, FPM benchmarks should improve
+upon existing default benchmarks (Ecology 2011). Therefore, we recommend
+using <code>RFPM</code> and site-specific data to the extent practicable
+to derive new benchmarks.</p></li>
+<li><p>While it is most common to generate benchmarks based on bulk
+sediment concentrations, it is not necessary that this be the case. For
+example, benchmarks could reflect organic carbon-normalized sediment
+concentrations, pore water concentrations, etc. These measurements might
+improve the relevance of toxicity predictions by taking bioavailability
+more explicitly into account. Attempts to generate benchmarks based on
+these types of data simply complicate the application of the benchmarks
+by requiring all future samples be analyzed and concentrations reported
+in the same way.</p></li>
+<li><p>While there may be a concern about mixing chemicals of different
+types and mechanisms/modes of action (e.g., metals and polycyclic
+aromatic hydrocarbons) when generating FPM benchmarks, it does not seem
+to us that such a distinction should matter. From a conceptual
+standpoint, the FPM could be used to predict any variable that is
+distilled to a <code>TRUE</code>/<code>FALSE</code> classification from
+a set of one or more independent variables (chemical or otherwise). The
+key limitations that arise when mixing chemicals (and/or non-chemical
+stressors) are:<br />
+</p></li>
+</ol>
+<ul>
+<li>All analytes added to the <code>FPM</code> via <code>data</code>
+need to have a common directionality with respect to <code>Hits</code>.
+In other words, toxicity is expected to increase as, for example, copper
+increases. Therefore, you could not also include pore water acidity,
+which increases toxicity at both high and low pH. This limitation is
+related to the chemical selection process, which (by default) assumes
+that concentrations will be higher among toxic samples. It also relates
+to the iteratively increasing nature of the <code>FPM</code> algorithm;
+concentrations start at a low level and then shift one direction
+(up).</li>
+<li>The inclusion of many correlated variables may increase the number
+of irrelevant benchmarks. For example, in the analysis of
+<code>h.northport</code> dataset presented above (using default
+<code>FPM</code> inputs), Fe was correlated with other metals (not
+shown) and, as a result, was selected for inclusion among the benchmarks
+despite being relatively non-toxic and contributing not at all to the
+predictive accuracy of the benchmark set. As described above,
+<code>chemVI</code> can help to identify potential simplifications to
+the benchmark set when correlated variables lead to unnecessary
+complexity. The user is also free to pre-screen their data to remove
+redundant variables.</li>
+</ul>
+<ol start="6" style="list-style-type: decimal">
+<li><p><code>FPM</code> has been found to work poorly or not at all with
+missing data. Consider removing analytes with incomplete datasets, omit
+samples with partial analysis, and/or impute values to fill data
+gaps.</p></li>
+<li><p><code>FPM</code> does not currently address non-detection in a
+meaningful way. As the model is largely based on percentiles and ranges
+rather than averages, this shouldn’t generally lead to major problems as
+long as there isn’t a high degree of non-detection (e.g., &gt;20%). We
+leave it to the user to address how non-detects will be handled and to
+use FPM benchmarks based on non-detected data with caution. High degrees
+of non-detection of a chemical is a good reason for excluding it from
+<code>data</code> (or <code>paramList</code>), as there is not a
+reasonable way to use such a chemical to predict Hits. The use of more
+advanced censored data imputation methods (e.g., Kaplan-Meier or
+Regression on Order Statistics [ROS]) may provide useful, but should
+also be used with care; using these methods (in addition to treating
+non-detects as half of detection limits or as zero) have the potential
+to result in benchmarks that fall below detection limits. We would argue
+that it is unreasonable to apply benchmarks that fall at or below
+detection limits.</p></li>
+<li><p>As with other toxicity-based benchmarks, it may be important to
+consider background chemical concentrations and reference area toxicity
+levels when developing and applying <code>FPM</code> benchmarks.
+Reference area toxicity can be incorporated explicitly into
+<code>Hits</code> definitions by normalizing toxicity data to the
+reference condition prior to classifying <code>Hits</code>, and
+background can be used to qualify chemical exceedances of FPM benchmarks
+that fall below background levels.</p></li>
+</ol>
+</div>
+<div id="references-cited" class="section level2">
+<h2>References cited:</h2>
+<p>Avocet. 2003. Development of freshwater sediment quality values for
+use in Washington State. Phase II report: Development and recommendation
+of SQVs for freshwater sediments in Washington State. Publication
+No. 03-09-088. Prepared for Washington Department of Ecology. Avocet
+Consulting, Kenmore, WA.</p>
+<p>Ecology. 2011. Development of benthic SQVs for freshwater sediments
+in Washington, Oregon, and Idaho. Publication no. 11-09-054. Toxics
+Cleanup Program, Washington State Department of Ecology, Olympia,
+WA.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

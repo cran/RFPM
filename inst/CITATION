@@ -1,0 +1,19 @@
+citHeader("To cite RFPM in publications use:")
+
+citEntry(
+  entry    = "Article",
+  title    = "Redevelopment and Improvement of the Floating Percentile Model in the R statistical Environment for the Calculation of Site-specific Sediment Quality Benchmarks",
+  author   = "Detering Claire, Church Brian, Toll John",
+  journal  = "SETAC North America",
+  year     = 2022,
+  textVersion = "Detering C, Church B, Toll J. 2022. Redevelopment and Improvement of the Floating Percentile Model in the R statistical Environment for the Calculation of Site-specific Sediment Quality Benchmarks. SETAC North America, Pittsburgh, PA, November 13-17, 2022."
+)
+
+citEntry(
+  entry    = "Article",
+  title    = "Evaluating Sensitivity and Variability of the Floating Percentile Model for Sediment Quality Benchmark Development",
+  author   = "Church Brian, Detering Claire, Toll John",
+  journal  = "SETAC North America",
+  year     = 2022,
+  textVersion = "Church B, Detering C, Toll J. 2022. Redevelopment and improvement of the floating percentile model in the r statistical environment for the calculation of site-specific sediment quality benchmarks. SETAC North America, Pittsburgh, PA, November 13-17, 2022."
+)
