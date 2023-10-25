@@ -6,7 +6,10 @@
 #' @param  data data.frame containing, at a minimum, chemical concentrations as columns and a logical \code{Hit} column classifying toxicity
 #' @param  paramList character vector of column names of chemical concentration variables in \code{data}
 #' @param  testType character string; whether to run parametric or non-parametric tests (default = \code{NULL}). See Details for more information.
-#' @param  alpha numeric value between 0 and 1; type-I error rate for hypothesis testing (default = \code{0.05})
+#' @param  alpha numeric value between 0 and 1; type-I error rate that, if supplied by the user, will be applied to all tests (default = \code{NULL})
+#' @param  alpha.var numeric value between 0 and 1; type-I error rate for testing equal variance assumption (default = \code{0.05})
+#' @param  alpha.norm  numeric value between 0 and 1; type-I error rate for testing normality assumption (default = \code{0.05})
+#' @param  alpha.test  numeric value between 0 and 1; type-I error rate for testing differences between Hit and No-hit datasets (default = \code{0.05})
 #' @param  alternative alternative hypothesis type for equality of central tendency (default = \code{"less"})
 #' @param  var.alternative alternative hypothesis type for equal variance test (default = \code{"two.sided"})
 #' @param  var.equal logical; whether to assume equal variance (default = \code{NULL})
@@ -15,7 +18,7 @@
 #' 
 #' @details 
 #' \code{chemSig} is called within \code{FPM} via \code{chemSigSelect}, which generates a subset of chemicals to
-#' pass into the floating percentil model algorithm. \code{chemSig} only returns a logical vector describing which parameters in \code{paramList} should be selected for
+#' pass into the floating percentile model algorithm. \code{chemSig} only returns a logical vector describing which parameters in \code{paramList} should be selected for
 #' benchmark development based on having significantly higher concentrations when \code{Hit == TRUE} than when \code{Hit == FALSE}.
 #' The user has the ability to manipulate several of the parameters of the selection algorithm, or they can allow \code{chemSig} to test for
 #' assumptions and use appropriate hypothesis tests based on those results. By default, \code{chemSig} will use \code{shapiro.test} to
@@ -27,7 +30,8 @@
 #' test types or \code{non}, \code{Non}, \code{np}, \code{NP}, \code{nonparam}, \code{Nonparam}, \code{non-param}, \code{Non-param}, \code{nonparametric}, \code{Nonparametric}, 
 #' \code{non-parametric}, \code{Non-parametric}, or \code{Non-Parametric}.
 #' 
-#' Only a single \code{alpha} level can be supplied; it is currently applied to all tests.
+#' The user has the option of providing a single \code{alpha} level to apply to all tests (e.g., 0.05) or to specify test-specific alpha levels via \code{alpha.var}, \code{alpha.norm}, and \code{alpha.test}.
+#' Note that \code{FPM} by default uses \code{alpha = 0.05} for all tests.
 #' 
 #' While \code{alternative} and \code{var.alternative} can be adjusted, we strongly recommend that they not be changed from the 
 #' default values. For example, changing \code{alternative} from \code{"less"} (default) to \code{"two.sided"} would result in
@@ -39,38 +43,46 @@
 #' \code{ExcelMode} assumes \code{testType = "parametric"}, \code{var.equal = TRUE}, \code{alternative = "less"}, and \code{alpha = 0.1}. In
 #' actuality, the Excel-based tool uses a one-way ANOVA test to compare two levels of \code{Hit}, which is equivalent to a t-test so long as alpha is adjusted to 0.1.
 #' Thus, \code{testType}, \code{alternative}, \code{var.alternative}, and \code{var.equal} are overridden when \code{ExcelMode = TRUE}. 
-#' This argument was included for those interested in using 'RFPM' as an alternative to the Excel-based calculator tool to obtain identical benchmark results.
+#' This argument was included for those interested in using 'RFPM' as an alternative to the Excel-based calculator tool to obtain identical benchmark results. Note that 
+#' the Excel FPM tool also includes other features which may complicate comparability such as outlier analysis. Outlier analysis is not conducted by RFPM.
 #' @return named logical vector
-#' @importFrom reshape2 melt 
-#' @importFrom stats shapiro.test 
+#' @importFrom tidyr pivot_longer
+#' @importFrom tidyr all_of
+#' @importFrom stats shapiro.test
 #' @importFrom stats var.test
 #' @importFrom stats fligner.test
 #' @importFrom stats t.test
 #' @importFrom stats wilcox.test
 #' @importFrom stats ks.test
 #' @importFrom lawstat brunner.munzel.test
+#' @importFrom dplyr `%>%`
 #' @examples
 #' paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-#' chemSig(data = h.tristate, paramList = paramList, testType = "nonparametric")
-#' chemSig(data = h.tristate, paramList = paramList, testType = "parametric")
+#' chemSig(h.tristate, paramList, "nonparametric")
+#' chemSig(h.tristate, paramList, "parametric")
 #' @export
-chemSig <- function(data, paramList, testType = NULL, alpha = 0.05, 
-                    alternative = "less", var.alternative = "two.sided", 
-                    var.equal = NULL, warn = TRUE, ExcelMode = NULL){
+chemSig <- function(data, 
+                    paramList, 
+                    testType = NULL, 
+                    alpha.var = 0.05, 
+                    alpha.norm = 0.05, 
+                    alpha.test = 0.05, 
+                    alpha = NULL, 
+                    alternative = "less", 
+                    var.alternative = "two.sided", 
+                    var.equal = NULL, 
+                    warn = TRUE, 
+                    ExcelMode = NULL){
     
     if(alternative == "greater"){
         stop("alternative should be 'less' or 'two.sided'; 'greater' should not be used; 'less' is recommended")
-    }
-    
-    if(alpha >= 1 | alpha <= 0) {
-        stop("alpha should be a value >0 and <1")
     }
     
     if(is.null(ExcelMode)){
         ExcelMode <- FALSE
     } else if(ExcelMode == TRUE){
         testType = "Parametric"
-        alpha <- 0.1 
+        alpha <- 0.1
         alternative <- "two.sided"
         var.equal <- TRUE
 
@@ -79,43 +91,65 @@ chemSig <- function(data, paramList, testType = NULL, alpha = 0.05,
         }
     }
     
-    ## message about how melt is handled is silenced
-    data <- suppressMessages(melt(data, measure.vars = paramList, na.rm = TRUE, 
-                                  value.name = "Result", variable.name = "Param"))
+    # alpha argument overrides test-specific alphas
+    if(!is.null(alpha)){
+       alpha.var <- alpha
+       alpha.norm <- alpha
+       alpha.test <- alpha
+    }
+    
+    
+    if(any((alpha >= 1 | alpha <= 0 | 
+       alpha.var >= 1 | alpha.var <= 0 | 
+       alpha.norm >= 1 | alpha.norm <= 0 | 
+       alpha.test >= 1 | alpha.test <= 0), na.rm = T)) {
+        stop("alpha input must be a value >0 and <1")
+    }
+    
+    
+    ## message about how melt was previously silenced - supressing any messages still
+    data2 <- suppressMessages(tidyr::pivot_longer(data %>% dplyr::select(all_of(c(paramList, "Hit"))), 
+                                          cols = all_of(paramList), 
+                                          values_drop_na = TRUE, 
+                                          values_to = "Result", 
+                                          names_to = "Param")
+                             )
     
     out <- unlist(
-        lapply(split(x = data, f = data$Param, drop = TRUE), function(x) {
+        lapply(split(x = data2, f = data2$Param, drop = TRUE), function(x) {
             if(length(unique(x$Result)) > 1){ 
                 if(is.null(testType)){
                         norm <- ifelse(length(unique(x[!x$Hit,]$Result)) == 1 |
                                 length(unique(x[x$Hit,]$Result)) == 1, TRUE,
-                            ifelse(shapiro.test(x[!x$Hit,]$Result)$p.value < alpha |
-                                shapiro.test(x[x$Hit,]$Result)$p.value < alpha, FALSE, TRUE))
+                            ifelse(shapiro.test(x[!x$Hit,]$Result)$p.value < alpha.norm |
+                                shapiro.test(x[x$Hit,]$Result)$p.value < alpha.norm, FALSE, TRUE))
                                                                                                                                                                                                            
                         if(norm){
                             if(is.null(var.equal)){
                                 var.equal <- var.test(x = x[!x$Hit,]$Result, 
-                                y = x[x$Hit,]$Result, 
-                                    alternative = var.alternative)$p.value >= alpha 
+                                            y = x[x$Hit,]$Result, 
+                                            alternative = var.alternative)$p.value >= alpha.var 
                             }
+                            
                             testSig <- t.test(x = x[!x$Hit,]$Result, 
                                               y = x[x$Hit,]$Result, 
-                                alternative = alternative, paired = FALSE, var.equal = var.equal)$p.value < alpha
+                                              alternative = alternative, paired = FALSE, 
+                                              var.equal = var.equal)$p.value < alpha.test
                         } else if(!norm){
                             if(is.null(var.equal)){
                                 var.equal <- fligner.test(x = x$Result, g = x$Hit, 
-                                    alternative = var.alternative)$p.value >= alpha 
+                                    alternative = var.alternative)$p.value >= alpha.var
                             }
                                 if(var.equal){
                                     testSig <- wilcox.test(x = x[!x$Hit,]$Result, 
                                         y = x[x$Hit,]$Result, 
-                                        alternative = alternative, exact = FALSE)$p.value < alpha
+                                        alternative = alternative, exact = FALSE)$p.value < alpha.test
                                 } else if(!var.equal){
                                     testSig <- suppressWarnings(expr = {
                                         ks.test(x = x[x$Hit,]$Result, 
                                                 y = x[!x$Hit,]$Result, 
                                                 alternative = alternative, 
-                                                exact = FALSE)$p.value < alpha
+                                                exact = FALSE)$p.value < alpha.test
                                         })
                                 }
                         }
@@ -126,12 +160,12 @@ chemSig <- function(data, paramList, testType = NULL, alpha = 0.05,
                 if(is.null(var.equal)){
                     var.equal <- var.test(x = x[!x$Hit,]$Result, 
                         y = x[x$Hit,]$Result, 
-                        alternative = var.alternative)$p.value >= alpha 
+                        alternative = var.alternative)$p.value >= alpha.var
                 }
                  
                 testSig <- t.test(x = x[!x$Hit,]$Result,
                     y = x[x$Hit,]$Result, 
-                    alternative = alternative, paired = FALSE, var.equal = var.equal)$p.value < alpha
+                    alternative = alternative, paired = FALSE, var.equal = var.equal)$p.value < alpha.test
                 return(testSig)
                 
             } else if(testType %in% c("Non-parametric", "Nonparametric", 
@@ -141,16 +175,16 @@ chemSig <- function(data, paramList, testType = NULL, alpha = 0.05,
                                       "nonparam", "np", "n")){
                 if(is.null(var.equal)){
                     var.equal <- fligner.test(x = x$Result, g = x$Hit, 
-                        alternative = var.alternative)$p.value >= alpha 
+                        alternative = var.alternative)$p.value >= alpha.var
                 }
                     if(var.equal){
                         testSig <- wilcox.test(x = x[!x$Hit,]$Result, 
                             y = x[x$Hit,]$Result, 
-                            alternative = alternative, exact = FALSE)$p.value < alpha
+                            alternative = alternative, exact = FALSE)$p.value < alpha.test
                     } else if(!var.equal){
                         testSig <- lawstat::brunner.munzel.test(x = x[!x$Hit,]$Result, 
                                          y = x[x$Hit,]$Result, 
-                                         alternative = alternative)$p.value < alpha
+                                         alternative = alternative)$p.value < alpha.test
                     }
                 return(testSig)
                 }

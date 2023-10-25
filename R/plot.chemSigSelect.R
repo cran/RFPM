@@ -29,7 +29,8 @@
 #' @importFrom graphics lines 
 #' @importFrom graphics mtext
 #' @examples
-#' x <- chemSigSelect(data = h.tristate, paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn"))
+#' x <- chemSigSelect(data = h.tristate, 
+#'     paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn"))
 #' plot(x, type = "boxplot")
 #' @export
 plot.chemSigSelect <- function(x, 
@@ -77,7 +78,8 @@ plot.chemSigSelect <- function(x,
             
             if(logAxes){logAx = "y"} else {logAx = ""}
             boxplot(tmp[,i.parm] ~ tmp$num, outline = FALSE, log = logAx,
-                    ylim = c(min(tmp[,i.parm]) * 0.8, max(tmp[, i.parm]) * 1.2),
+                    ylim = c(min(tmp[,i.parm], na.rm = T) * 0.8, 
+                             max(tmp[, i.parm], na.rm = T) * 1.2),
                     names = FALSE, 
                     xlab = "", ylab = paste0("[ ", i.parm, " ]"), cex.lab = 1.5,
                     main = i.parm, cex.main = 2,
@@ -115,7 +117,8 @@ plot.chemSigSelect <- function(x,
             
             if(logAxes){logAx = "x"} else {logAx = ""}
             plot.ecdf(h.ecdf, verticals = TRUE, pch = NA, lwd = 2, log = logAx,
-                      xlim = c(min(tmp[,i.parm]), max(tmp[,i.parm])),
+                      xlim = c(min(tmp[,i.parm], na.rm = T), 
+                               max(tmp[,i.parm], na.rm = T)),
                       col = ifelse(i.parm %in% colnames(x[[1]]), "royalblue", "springgreen4"),
                       main = i.parm,
                       xlab = paste0("[ ", i.parm, " ]"), ...)
@@ -153,8 +156,10 @@ plot.chemSigSelect <- function(x,
                 tmp <- x[[2]][, c(i.parm, "Hit")]
             }
             
-            h.dens <- density(tmp[tmp$Hit == TRUE, i.parm], from = 10^(floor(log10(min(tmp[tmp$Hit == TRUE, i.parm])))))
-            nh.dens <- density(tmp[tmp$Hit == FALSE, i.parm], from = 10^(floor(log10(min(tmp[tmp$Hit == TRUE, i.parm])))))
+            h.dens <- density(tmp[tmp$Hit == TRUE & !is.na(tmp[, i.parm]), i.parm], 
+                              from = 10^(floor(log10(min(tmp[tmp$Hit == TRUE, i.parm], na.rm = T)))))
+            nh.dens <- density(tmp[tmp$Hit == FALSE & !is.na(tmp[, i.parm]), i.parm], 
+                               from = 10^(floor(log10(min(tmp[tmp$Hit == TRUE, i.parm], na.rm = T)))))
             
             if(logAxes){
                 logAx <- "x"
@@ -163,7 +168,8 @@ plot.chemSigSelect <- function(x,
             }
             
             plot(h.dens, 
-                 xlim = c(min(tmp[,i.parm]), max(tmp[,i.parm])), log = logAx,
+                 xlim = c(min(tmp[!is.na(tmp[,i.parm]), i.parm]), 
+                          max(tmp[!is.na(tmp[,i.parm]),i.parm])), log = logAx,
                  ylim = c(min(h.dens$y, nh.dens$y), max(h.dens$y, nh.dens$y)),
                  col = col.string[1],
                  lwd = 2,

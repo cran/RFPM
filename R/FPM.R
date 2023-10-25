@@ -4,13 +4,17 @@
 #' 
 #' @param  data data.frame containing, at a minimum, chemical concentrations as columns and a logical \code{Hit} column classifying toxicity
 #' @param  paramList character vector of column names of chemical concentration variables in \code{data}
+#' @param  FN_crit numeric vector of values between 0 and 1 indicating false negative threshold(s) for benchmark selection (default = \code{0.2})
 #' @param  paramFixed character vector of column names of chemical concentration variables to retain, bypassing testing for specific chemicals (default = \code{NULL}). See Details.
 #' @param  paramOverride logical; whether to retain every chemical variable in \code{paramList} (default = \code{FALSE}). See Details.
 #' @param  increment numeric value greater than 1; number of increments to evaluate (default = \code{10}). See Details.
 #' @param  precision numeric value between 0 and 1 (default = \code{0.1})
-#' @param  FN_crit numeric vector of values between 0 and 1 indicating false negative threshold(s) for benchmark selection (default = \code{0.2})
+#' @param  empirical logical; whether to return the highest empirical value meeting acceptable conditions of the FPM algorithm (default = \code{TRUE})
+#' @param  defIter numeric value greater than 0; default number of iterations to use in the case of negative or zero values in \code{data} (default = \code{5})
 #' @param  seed random seed to set for reproducible results; only for handling edge cases of ranking ties (default = \code{1})
+#' @param  densInfo logical; whether to return the "density" statistic defining how much FPM criteria changed within the algorithm (default = \code{FALSE})
 #' @param  lockInfo logical; whether to return the reason for and order in which benchmarks were "locked" within the model algorithm (default = \code{FALSE}). See Details.
+#' @param  hitInfo logical; whether to return the predicted Hit results as part of the output (default = \code{FALSE})
 #' @param  ... additional argument passed to \code{chemSigSelect} and \code{chemSig}
 #' @details \code{FPM} is the main function provided in 'RFPM', which was developed firstly as a redevelopment of the Washington Department of Ecology's Excel-based
 #' floating percentile model tool (Avocet 2003; Ecology 2011), and secondly as a means to evaluate uncertainties and sensitivities associated with the model. \code{FPM} generates 
@@ -44,6 +48,10 @@
 #' result in more accurate benchmarks. In general, we recommend reducing \code{precision} rather than increasing \code{increment} in order to potentially enhance the
 #' precision of benchmark calculations.
 #' 
+#' \code{empirical} by default returns empirical concentrations from \code{data} that meets the conditions of the FPM. The user can set this argument \code{FALSE} if an exact FPM calculation is desired. The exact calculation will still meet the FPM requirements.
+#' 
+#' The \code{hitInfo} argument allows the user to export the Hit predictions (\code{FPM_Hit}) for \code{data} based on the calculated FPM criteria as well as the associated FN/FP/TP/TN \code{class}.
+#' 
 #' The \code{lockInfo} argument allows the user to export information about what caused the model algorithm to lock for each
 #' chemical. Output options are: \code{"FN"} for exceeding the false negative limit (i.e., \code{FN_crit}), \code{"FP"} if the number of false positives was reduced to zero, 
 #' \code{"Max"} if the empirical maximum concentration was exceeded, or \code{Mix} if more than one of the first three options occurred.
@@ -51,13 +59,11 @@
 #' The following classification statistics are reported alongside the generated benchmarks:
 #' \code{TP}, \code{FN}, \code{TN}, and \code{FP} - the numbers of true positive, false negative, true negative, and false positive predictions
 #' \code{pFN} and \code{pFP} - proportions of false predictions (false No-hit and false Hit, respectively)
-#' \code{HR} - hit rate or sensitivity; the probability of detecting a Hit
-#' \code{NR} - negative rate or specificity; the probability of detecting a No-hit
-#' \code{PHR} - positive predictive value or precision; how often were Hit predictions correct?
-#' \code{PNR} - negative predictive value; how often were No-hit predictions correct?
-#' \code{FHR} - false positive predictive value; how often were Hit predictions incorrect?
-#' \code{FNR} - false negative predictive value; how often were No-hit predictions incorrect?
+#' \code{sens} - sensitivity; the probability of detecting a Hit
+#' \code{spec} - specificity; the probability of detecting a No-hit
 #' \code{OR} - overall reliability; the probability of making a correct prediction (Hit or No-hit)
+#' \code{FM} - Fowlkes-Mallows Index; geometric mean of sensitivity and the positive predictive rate
+#' \code{MCC} - Matthew's Correlation Coefficient; metric analogous to Pearson's coefficient, but instead defining correspondance between categorical predictions and reality (rather than for continuous data).
 #' 
 #' The second output of \code{FPM} is a metric called \code{chemDensity}. This is a measure of how much
 #' the percentile "floated" in the algorithm from the starting position up to the chemical's value at which it was locked in place.
@@ -78,18 +84,23 @@
 #' Ecology. 2011. Development of benthic SQVs for freshwater sediments in Washington, Oregon, and Idaho. Publication no. 11-09-054. Toxics Cleanup Program, Washington State Department of Ecology, Olympia, WA.
 #' @examples
 #' paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-#' FPM(data = h.tristate, paramList = paramList, ExcelMode = TRUE, warn = FALSE)
-#' FPM(data = h.tristate, paramList = paramList, FN_crit = c(0.1, 0.2, 0.3))
+#' FPM(h.tristate, paramList, ExcelMode = TRUE, warn = FALSE)
+#' FPM(h.tristate, paramList, c(0.1, 0.2, 0.3))
 #' @export
+
 FPM <- function(data, 
                 paramList, 
+                FN_crit = 0.2,
                 paramFixed = NULL,
                 paramOverride = FALSE,
                 increment = 10, 
                 precision = 0.1,
-                FN_crit = 0.2, 
-                seed = 1, 
+                empirical = TRUE,
+                defIter = 5,
+                seed = 1,
+                densInfo = FALSE,
                 lockInfo = FALSE,
+                hitInfo = FALSE,
                 ...) {
 
     if(nrow(data) == 0){ 
@@ -118,8 +129,8 @@ FPM <- function(data,
     lockReasonList <- list()
     densityList <- list()
     
-    for(FN in 1:length(FN_crit)){
-        FN_crit.i <- FN_crit[FN]
+    for(fn in 1:length(FN_crit)){
+        FN_crit.i <- FN_crit[fn]
         
         ## parameter selection ---
         if(!paramOverride){
@@ -130,7 +141,6 @@ FPM <- function(data,
             } else if(is.character(paramFixed) & length(paramFixed) < length(paramList)){
                 dNew <- data.frame(data[, paramFixed],  # fixed parameters moved to front of data.frame
                     chemSigSelect(data = data, paramList = paramList[!(paramList %in% paramFixed)], ...)[[1]])
-
                 names(dNew)[1:length(paramFixed)] <- paramFixed # add flag to parameter to show it was fixed
                 paramListNew <- names(dNew[-length(dNew)])
                 paramAlpha <- order(paramListNew) ## alphabetical order of inputs (index is left to right as supplied)
@@ -147,10 +157,10 @@ FPM <- function(data,
             if(!is.null(paramFixed)){
                 warning("paramFixed is ignored when paramOverride is TRUE; using paramList instead")
             }
-            dNew <- data.frame(data[, paramList], Hit = data$Hit) # keep all data when paramOverride = TRUE
+            dNew <- data.frame(data[paramList], Hit = data$Hit) # keep all data when paramOverride = TRUE
             paramListNew <- paramList
             paramAlpha <- order(paramListNew)
-            }
+        }
         
     
         ## dataset prep (split by hit/no-hit class, then exclude class)
@@ -159,7 +169,6 @@ FPM <- function(data,
         allData <- as.matrix(dNew[, -length(dNew)])
         
         
-
         ## accounting for shift in matrix format (column to vector) when only 1 significant parameter selected
         if(ncol(nohit) == 1) {
             colnames(nohit) <- paramListNew
@@ -171,11 +180,7 @@ FPM <- function(data,
             colnames(allData) <- paramListNew
         }
         
-        # sample sizes
-        nNoHit <- nrow(nohit)
-        nHit <- nrow(hit)
-        nAllData <- nrow(allData)
-        
+
         ## parameter prep/initialization
         minVal <- matrix(
             do.call(cbind, lapply(as.data.frame(allData), FUN = function(x) {
@@ -202,7 +207,17 @@ FPM <- function(data,
         liftf <- lifti ## initializing loop update to lift
         
         ## Limit the number of iterative loops
-        estIter <- floor(log10((maxVal - minVal) / (precision * minVal)) / log10(increment)) # taken from user manual
+        
+        
+        ## Updated V1.1 - accounts for negative, zero, and missing values
+        if(!any(allData <= 0, na.rm = T)){
+            estIter <- floor(log10((maxVal - minVal) / (precision * minVal)) / log10(increment)) # taken from user manual
+        } else {
+            estIter <- lifti # initializing object
+            estIter[1:length(estIter)] <- defIter
+            warning("Data contains nonpositive inputs - precision ignored and iterations set to defIter")
+        }
+        
         iter <- estIter # countdown tracker by chemical (lock when iter==0 & FN>FN_crit.i | FP==0 | Cf > maxVal)
         
         if(any(estIter < 1)){
@@ -223,36 +238,33 @@ FPM <- function(data,
                         FP = null,
                         pFN = null,
                         pFP = null,
-                        HR = null,
-                        NR = null,
-                        PHR = null,
-                        PNR = null,
-                        FHR = null,
-                        FNR = null,
-                        OR = null)
+                        sens = null,
+                        spec = null,
+                        OR = null,
+                        FM = null,
+                        MCC = null)
         
         ## initial error calculations
         E$TP <- apply(apply(P[2:length(P)], 1, function(x) {
                     apply(hit, 1, function(y) {
-                        any(y > x)})}), 2, sum)
+                        any(y > x)})}), 2, sum, na.rm = T)
         E$FN <- apply(apply(P[2:length(P)], 1, function(x) {
                     apply(hit, 1, function(y) {
-                        all(y <= x)})}), 2, sum)
+                        all(y <= x)})}), 2, sum, na.rm = T)
         E$TN <- apply(apply(P[2:length(P)], 1, function(x) {
                     apply(nohit, 1, function(y) {
-                        all(y <= x)})}), 2, sum)
+                        all(y <= x)})}), 2, sum, na.rm = T)
         E$FP <- apply(apply(P[2:length(P)], 1, function(x) {
                     apply(nohit, 1, function(y) {
-                        any(y > x)})}), 2, sum)
-        E$pFN <- with(E, FN / nHit)
-        E$pFP <- with(E, FP / nNoHit)
-        E$HR <- with(E, 1 - pFN)
-        E$NR <- with(E, 1 - pFP)
-        E$PHR <- with(E, TP/(TP + FP))
-        E$PNR <- with(E, TN/(TN + FN))
-        E$FHR <- with(E, 1 - PHR)
-        E$FNR <- with(E, 1 - PNR)
-        E$OR <- with(E, (TP + TN)/nAllData)
+                        any(y > x)})}), 2, sum, na.rm = T)
+        E$pFN <- with(E, FN / (FN + TP))
+        E$pFP <- with(E, FP / (FP + TN))
+        
+        E$sens <- with(E, TP/(TP + FN))
+        E$spec <- with(E, TN/(TN + FP))
+        E$OR <- with(E, (TP + TN)/(TN + TP + FN + FP))
+        E$FM <- with(E, sqrt((TP/(TP + FP)) * sens))
+        E$MCC <- with(E, (TP * TN - FP * FN)/sqrt((TP+FP) * (TP+FN) * (TN+FP) * (TN+FN)))
         
         ## Initialize output
         O <- E[1,]
@@ -261,12 +273,8 @@ FPM <- function(data,
         
         
         ## find initial index for percentile, reduce if necessary to be below FN_crit.i, and stop at index == 1 (minimum)
-        index <- which(abs(E$pFN - FN_crit.i) == min(abs(E$pFN - FN_crit.i)))
-        
-        # take highest percentile among tied values
-        if(length(index) > 1) { 
-            index <- max(index) 
-        } 
+        if(!any(E$pFN < FN_crit.i)){ warning("FN rate always exceeds FN_crit") }
+        index <- max(which(abs(E$pFN[E$pFN < FN_crit.i] - FN_crit.i) == min(abs(E$pFN[E$pFN < FN_crit.i] - FN_crit.i))))
         
         repeat{
             if(E$pFN[index] <= FN_crit.i | index == 1){
@@ -295,8 +303,8 @@ FPM <- function(data,
         colnames(lockReason) <- paramListNew
         
         ## FP by chemical (initial version - will be recreated each loop)
-        FPi <- do.call(cbind, lapply(1:length(Ci), function(col){
-                    sum(nohit[,col] > Ci[[col]])
+        FPi <- do.call(cbind, lapply(1:length(Ci), function(Col){
+                    sum(nohit[,Col] > Ci[,Col], na.rm = T)
                 }))
         colnames(FPi) <- paramListNew
         FPf <- FPi
@@ -309,8 +317,8 @@ FPM <- function(data,
             # while-loop driven by the lock variable - all chems must be locked to stop the algorithm 
             ## FP by chemical before increment
             
-            FPi <- do.call(cbind, lapply(1:length(Ci), function(col){
-                        sum(nohit[,col] > Ci[[col]])}))
+            FPi <- do.call(cbind, lapply(1:length(Ci), function(Col){
+                        sum(nohit[,Col] > Ci[[Col]], na.rm = T)}))
             
             # Selecting chemical to increase concentration using FP rate
             ## Follows stepwise selection process:
@@ -347,17 +355,18 @@ FPM <- function(data,
             ## 3. New concentration (Cf) is less than or equal to the maximum empirical concentration
             ## ** Note that FPf==0 does not necessarily disqualify a new value; it is accepted if #1,#3 not also triggered.
             
-            FPf <- do.call(cbind, lapply(1:length(Cf), function(col){
-                            sum(nohit[,col] > Cf[[col]])})) ## recalculate FP
+            FPf <- do.call(cbind, lapply(1:length(Cf), function(Col){
+                            sum(nohit[,Col] > Cf[[Col]], na.rm = T)})) ## recalculate FP
             colnames(FPf) <- paramListNew
             
             TPf <- apply(apply(Cf, 1, function(x) {
                         apply(hit, 1, function(y) {
-                            any(y > x)})}), 2, sum)
+                            any(y > x)})}), 2, sum, na.rm = T)
             FNf <- apply(apply(Cf, 1, function(x) {
                         apply(hit, 1, function(y) {
-                            all(y <= x)})}), 2, sum)
+                            all(y <= x)})}), 2, sum, na.rm = T)
             pFNf <- FNf / (TPf + FNf) # recalculate overall pFN
+            
             
             # check acceptability of increase
             if(pFNf > FN_crit.i | 
@@ -367,43 +376,50 @@ FPM <- function(data,
                     
                     Cf[, chem] <- as.numeric(Ci[, chem]) + as.numeric(liftf[, chem]) 
                     
-                    FPf <- do.call(cbind, lapply(1:length(Cf), function(col){
-                                    sum(nohit[, col] > Cf[[col]])}))
+                    FPf <- do.call(cbind, lapply(1:length(Cf), function(Col){
+                                    sum(nohit[, Col] > Cf[[Col]], na.rm = T)}))
                     colnames(FPf) <- colnames(Cf)
                     
                     TPf <- apply(apply(Cf, 1, function(x) {
                                 apply(hit, 1, function(y) {
-                                    any(y > x)})}), 2, sum)
+                                    any(y > x)})}), 2, sum, na.rm = T)
                     
                     FNf <- apply(apply(Cf, 1, function(x) {
                                 apply(hit, 1, function(y) {
-                                    all(y <= x)})}), 2, sum)
+                                    all(y <= x)})}), 2, sum, na.rm = T)
                     pFNf <- FNf / (TPf + FNf)
                     
                     
                     if((pFNf > FN_crit.i | 
                         FPf[, chem] == 0 |
                         (pFNf <= FN_crit.i & FPf[,chem] > 0 & Cf[, chem] > maxVal[, chem])) & 
-                       iter[,chem] == 1){ # any trigger condition met and no more iterations allowed # CD: Changed 0 to 1 to make 4 steps
+                        iter[, chem] == 1){ # any trigger condition met and no more iterations allowed # CD: Changed 0 to 1 to make 4 steps
+                        
                         if(FPf[, chem] == 0 & pFNf <= FN_crit.i & Cf[, chem] <= maxVal[,chem]){ # FP as only trigger
+                            
                             Ci[, chem] <- Cf[, chem] # Allow final increment when FP is reason for locking
                             lockReason[, chem] <- "FP"
                         } else if (FPf[,chem] > 0 & pFNf > FN_crit.i & Cf[, chem] <= maxVal[, chem]){
+                        
                             # no change to Ci for FN lock (unacceptable FN error) 
                             lockReason[, chem] <- "FN"
                             Cf[, chem] <- Ci[, chem]
                         } else if (FPf[,chem] > 0 & pFNf <= FN_crit.i & Cf[, chem] > maxVal[, chem]){
+                            
                             # no change to Ci for Max lock (outside empirical data)
                             lockReason[, chem] <- "Max"   
                         } else {
+                            
                             lockReason[, chem] <- "Mix" # multiple reasons; no change allowed
                         }
+                        
                         lock[, chem] <- lockN + 1
                         lockN <- lockN + 1
                         break # no more iterations allowed; lock chemical and exit loop
                     } else if((pFNf > FN_crit.i | 
                                FPf[, chem] == 0) &
                                iter[, chem] > 1){ # any trigger condition met and iterations still allowed
+                        
                         Cf[, chem] <- Ci[, chem] # step back to previous value
                         iter[,chem] <- iter[, chem] - 1 # reduce iterations allowed
                         liftf[, chem] <- liftf[, chem]/increment # shrink lift and repeat loop 
@@ -419,54 +435,65 @@ FPM <- function(data,
         ## --------------------------------------------------------------------------------------------------------------------------
         
         # select empirical concentration closest to calculated Ci
-        Co <- as.data.frame(lapply(colnames(Ci), function(col){
-                temp <- as.numeric(Ci[, col]) - as.numeric(allData[, col])
-                diffPick <- min(temp[temp >= 0])
-                return(as.numeric(Ci[, col]) - as.numeric(diffPick))
-            }))
-        colnames(Co) <- colnames(Ci)
-        
+        if(empirical){
+            Co <- as.data.frame(lapply(colnames(Ci), function(Col){
+                    temp <- as.numeric(Ci[, Col]) - as.numeric(allData[, Col])
+                    diffPick <- min(temp[temp >= 0], na.rm = T)
+                    return(as.numeric(Ci[, Col]) - as.numeric(diffPick))
+                }))
+            colnames(Co) <- colnames(Ci)
+        } else {
+            Co <- Ci ## export calculated value if empirical = FALSE
+        }
         
         # calculate final error calcs and append to final FPM SQBs
-        O$TP <- apply(apply(Ci, 1, function(x) {
+        O$TP <- apply(apply(Co, 1, function(x) {
                     apply(hit, 1, function(y) {
-                        any(y > x)})}), 2, sum)
-        O$FN <- apply(apply(Ci, 1, function(x) {
+                        any(y > x)})}), 2, sum, na.rm = T)
+        O$FN <- apply(apply(Co, 1, function(x) {
                     apply(hit, 1, function(y) {
-                        all(y <= x)})}), 2, sum)
-        O$TN <- apply(apply(Ci, 1, function(x) {
+                        all(y <= x)})}), 2, sum, na.rm = T)
+        O$TN <- apply(apply(Co, 1, function(x) {
                     apply(nohit, 1, function(y) {
-                        all(y <= x)})}), 2, sum)
-        O$FP <- apply(apply(Ci, 1, function(x) {
+                        all(y <= x)})}), 2, sum, na.rm = T)
+        O$FP <- apply(apply(Co, 1, function(x) {
                     apply(nohit, 1, function(y) {
-                        any(y > x)})}), 2, sum)
+                        any(y > x)})}), 2, sum, na.rm = T)
         O$pFN <- with(O, FN / (TP + FN))
         O$pFP <- with(O, FP / (TN + FP))
-        O$HR <- with(O, 1 - pFN)
-        O$NR <- with(O, 1 - pFP)
-        O$PHR <- with(O, TP/(TP + FP))
-        O$PNR <- with(O, TN/(TN + FN))
-        O$FHR <- with(O, 1 - PHR)
-        O$FNR <- with(O, 1 - PNR)
-        O$OR <- with(O, (TP + TN)/nAllData)
-
+        O$sens <- with(O, TP/(TP + FN))
+        O$spec <- with(O, TN/(TN + FP))
+        O$OR <- with(O, (TP + TN)/(TP + TN + FP + FN))
+        O$FM <- with(O, sqrt((TP/(TP + FP)) * sens))
+        O$MCC <- with(O, (TP * TN - FP * FN)/sqrt((TP+FP) * (TP+FN) * (TN+FP) * (TN+FN)))
+        
+        
         # chemDensity
         dens <- data.frame(
             lapply(paramListNew, function(x) {
                 start <- quantile(dNew[, x], p = index/100, na.rm = TRUE)[[1]]
                 end <- unlist(Ci[, x])
                 return(
-                    1 - (end - start)/(max(dNew[, x]) - start)
+                    1 - (end - start)/(max(dNew[, x], na.rm = T) - start)
                 )
             }))
         colnames(dens) <- paramListNew
+        ## Added V1.1 - warning describes possible issue
+        if(length(FN_crit) == 1){
+            if(any(is.na(dens))){
+                warning("chemDensity is NaN: FN_crit exceeds maximum pFN")
+            } else if(all(dens == 1) & O$pFN > FN_crit){
+                warning("chemDensity is 1: minimum pFN exceeds FN_crit")
+            }
+        }
+        
         
         out <- data.frame(Co, signif(O, 3))
         attr(out, "liftf") <- as.data.frame(liftf)
-        FN_crit_list[[FN]] <- out
-        lockList[[FN]] <- lock
-        lockReasonList[[FN]] <- lockReason
-        densityList[[FN]] <- dens
+        FN_crit_list[[fn]] <- out
+        lockList[[fn]] <- lock
+        lockReasonList[[fn]] <- lockReason
+        densityList[[fn]] <- dens
     }
     
     # combine results, remove messy rownames, and  return final results
@@ -480,13 +507,56 @@ FPM <- function(data,
     rownames(lockReasonTmp) <- NULL
     rownames(densityList) <- NULL
     
-    if(lockInfo){
-        return(list(FPM = tmp, 
-                    chemDensity = signif(densityTmp, 3), 
-                    lockReason = as.data.frame(lockReasonTmp), 
-                    lockOrder = as.data.frame(lockTmp)))
-    } else {
-        return(list(FPM = tmp, 
-                    chemDensity = signif(densityTmp, 3)))
+    if(hitInfo){
+        FPM_Hit <- rep(NA, nrow(data))
+        for(i in 1:nrow(data)){
+            Hit_tmp <- rep(NA, length(paramListNew))
+            names(Hit_tmp) <- paramListNew
+            for(j in paramListNew){
+                 Hit_tmp[j] <- data[i, j] > tmp[,j]
+            }
+            FPM_Hit[i] <- ifelse(!any(Hit_tmp, na.rm = T) & any(is.na(Hit_tmp)), NA,
+                                 ifelse(any(Hit_tmp), TRUE, FALSE)) ## any exceeds triggers a Hit based on FPMs
+        }
+    }
+    
+    class(tmp) <- c("FPM", "data.frame")
+    
+    if(densInfo){
+        if(lockInfo & hitInfo){
+            return(list(FPM = tmp, 
+                        chemDensity = signif(densityTmp, 3), 
+                        lockReason = as.data.frame(lockReasonTmp), 
+                        lockOrder = as.data.frame(lockTmp),
+                        FPM_Hit = FPM_Hit))
+        } else if(lockInfo){
+            return(list(FPM = tmp, 
+                        chemDensity = signif(densityTmp, 3), 
+                        lockReason = as.data.frame(lockReasonTmp), 
+                        lockOrder = as.data.frame(lockTmp)))
+        } else if(hitInfo){
+            return(list(FPM = tmp, 
+                        chemDensity = signif(densityTmp, 3), 
+                        FPM_Hit = FPM_Hit))
+        } else{
+            return(list(FPM = tmp, 
+                        chemDensity = signif(densityTmp, 3)))
+        }
+    } else{
+        if(lockInfo & hitInfo){
+            return(list(FPM = tmp, 
+                        lockReason = as.data.frame(lockReasonTmp), 
+                        lockOrder = as.data.frame(lockTmp),
+                        FPM_Hit = FPM_Hit))
+        } else if(lockInfo){
+            return(list(FPM = tmp, 
+                        lockReason = as.data.frame(lockReasonTmp), 
+                        lockOrder = as.data.frame(lockTmp)))
+        } else if(hitInfo){
+            return(list(FPM = tmp, 
+                        FPM_Hit = FPM_Hit))
+        } else{
+            return(list(FPM = tmp))
+        }
     }
 } ## end code

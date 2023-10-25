@@ -32,7 +32,7 @@ optimization matrix graphics (i.e., when optimizing both \code{alpha} and \code{
 }
 \examples{
 x <- rnorm(n = 100)
-cols <- colorGradient(x = x, colors = c("red", "white", "blue"))
+cols <- colorGradient(x, c("red", "white", "blue"))
 plot(x, col = cols)
 }
 \seealso{

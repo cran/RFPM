@@ -22,13 +22,13 @@
 #' @importFrom stats rnorm 
 #' @examples
 #' concentration = h.northport$Cu
-#' toxVals <- toxCRM(x = concentration,
-#'     max = 1, min = 0, steep = 0.5, mid = median(concentration), eMean = 0, eSD = 0)
-#' plot(x = concentration, y = toxVals, log = "x", main = "Perfect estimate")
+#' toxVals <- toxCRM(concentration, 1, 0, 0.5, 
+#'     median(concentration), 0, 0)
+#' plot(concentration, toxVals, log="x", main="Perfect estimate")
 #' 
 #' toxVals_withNoise <- toxCRM(x = concentration,
-#'     max = 1, min = 0, steep = 0.5, mid = median(concentration), eMean = 0, eSD = 0.1, seed = 1)
-#' plot(x = concentration, y = toxVals_withNoise, log = "x", main = "Noisy estimate")
+#'     1, 0, 0.5, median(concentration), 0, 0.1, seed = 1)
+#' plot(concentration, toxVals_withNoise, log="x", main="Noisy estimate")
 #' @export
 toxCRM <- function(x,
                    max = 1, 

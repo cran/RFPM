@@ -7,13 +7,17 @@
 FPM(
   data,
   paramList,
+  FN_crit = 0.2,
   paramFixed = NULL,
   paramOverride = FALSE,
   increment = 10,
   precision = 0.1,
-  FN_crit = 0.2,
+  empirical = TRUE,
+  defIter = 5,
   seed = 1,
+  densInfo = FALSE,
   lockInfo = FALSE,
+  hitInfo = FALSE,
   ...
 )
 }
@@ -21,6 +25,8 @@ FPM(
 \item{data}{data.frame containing, at a minimum, chemical concentrations as columns and a logical \code{Hit} column classifying toxicity}
 
 \item{paramList}{character vector of column names of chemical concentration variables in \code{data}}
+
+\item{FN_crit}{numeric vector of values between 0 and 1 indicating false negative threshold(s) for benchmark selection (default = \code{0.2})}
 
 \item{paramFixed}{character vector of column names of chemical concentration variables to retain, bypassing testing for specific chemicals (default = \code{NULL}). See Details.}
 
@@ -30,11 +36,17 @@ FPM(
 
 \item{precision}{numeric value between 0 and 1 (default = \code{0.1})}
 
-\item{FN_crit}{numeric vector of values between 0 and 1 indicating false negative threshold(s) for benchmark selection (default = \code{0.2})}
+\item{empirical}{logical; whether to return the highest empirical value meeting acceptable conditions of the FPM algorithm (default = \code{TRUE})}
+
+\item{defIter}{numeric value greater than 0; default number of iterations to use in the case of negative or zero values in \code{data} (default = \code{5})}
 
 \item{seed}{random seed to set for reproducible results; only for handling edge cases of ranking ties (default = \code{1})}
 
+\item{densInfo}{logical; whether to return the "density" statistic defining how much FPM criteria changed within the algorithm (default = \code{FALSE})}
+
 \item{lockInfo}{logical; whether to return the reason for and order in which benchmarks were "locked" within the model algorithm (default = \code{FALSE}). See Details.}
+
+\item{hitInfo}{logical; whether to return the predicted Hit results as part of the output (default = \code{FALSE})}
 
 \item{...}{additional argument passed to \code{chemSigSelect} and \code{chemSig}}
 }
@@ -83,6 +95,10 @@ The default value for \code{precision} is \code{0.1}, but the value could be low
 result in more accurate benchmarks. In general, we recommend reducing \code{precision} rather than increasing \code{increment} in order to potentially enhance the
 precision of benchmark calculations.
 
+\code{empirical} by default returns empirical concentrations from \code{data} that meets the conditions of the FPM. The user can set this argument \code{FALSE} if an exact FPM calculation is desired. The exact calculation will still meet the FPM requirements.
+
+The \code{hitInfo} argument allows the user to export the Hit predictions (\code{FPM_Hit}) for \code{data} based on the calculated FPM criteria as well as the associated FN/FP/TP/TN \code{class}.
+
 The \code{lockInfo} argument allows the user to export information about what caused the model algorithm to lock for each
 chemical. Output options are: \code{"FN"} for exceeding the false negative limit (i.e., \code{FN_crit}), \code{"FP"} if the number of false positives was reduced to zero,
 \code{"Max"} if the empirical maximum concentration was exceeded, or \code{Mix} if more than one of the first three options occurred.
@@ -90,13 +106,11 @@ chemical. Output options are: \code{"FN"} for exceeding the false negative limit
 The following classification statistics are reported alongside the generated benchmarks:
 \code{TP}, \code{FN}, \code{TN}, and \code{FP} - the numbers of true positive, false negative, true negative, and false positive predictions
 \code{pFN} and \code{pFP} - proportions of false predictions (false No-hit and false Hit, respectively)
-\code{HR} - hit rate or sensitivity; the probability of detecting a Hit
-\code{NR} - negative rate or specificity; the probability of detecting a No-hit
-\code{PHR} - positive predictive value or precision; how often were Hit predictions correct?
-\code{PNR} - negative predictive value; how often were No-hit predictions correct?
-\code{FHR} - false positive predictive value; how often were Hit predictions incorrect?
-\code{FNR} - false negative predictive value; how often were No-hit predictions incorrect?
+\code{sens} - sensitivity; the probability of detecting a Hit
+\code{spec} - specificity; the probability of detecting a No-hit
 \code{OR} - overall reliability; the probability of making a correct prediction (Hit or No-hit)
+\code{FM} - Fowlkes-Mallows Index; geometric mean of sensitivity and the positive predictive rate
+\code{MCC} - Matthew's Correlation Coefficient; metric analogous to Pearson's coefficient, but instead defining correspondance between categorical predictions and reality (rather than for continuous data).
 
 The second output of \code{FPM} is a metric called \code{chemDensity}. This is a measure of how much
 the percentile "floated" in the algorithm from the starting position up to the chemical's value at which it was locked in place.
@@ -107,8 +121,8 @@ and vice-versa. For those interested in understanding the relative importance of
 }
 \examples{
 paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-FPM(data = h.tristate, paramList = paramList, ExcelMode = TRUE, warn = FALSE)
-FPM(data = h.tristate, paramList = paramList, FN_crit = c(0.1, 0.2, 0.3))
+FPM(h.tristate, paramList, ExcelMode = TRUE, warn = FALSE)
+FPM(h.tristate, paramList, c(0.1, 0.2, 0.3))
 }
 \references{
 Avocet. 2003. Development of freshwater sediment quality values for use in Washington State. Phase II report: Development and recommendation of SQVs for freshwater sediments in Washington State. Publication No. 03-09-088. Prepared for Washington Department of Ecology. Avocet Consulting, Kenmore, WA.

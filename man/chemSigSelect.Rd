@@ -33,8 +33,8 @@ limited control over graphical parameters of plots, and attempts to change graph
 }
 \examples{
 paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-chemSigSelect(data = h.tristate, paramList = paramList)$sig[1:6,]
-chemSigSelect(data = h.tristate, paramList = paramList, testType = "p")$sig[1:6,]
+chemSigSelect(h.tristate, paramList)$sig[1:6,]
+chemSigSelect(h.tristate, paramList, testType = "p")$sig[1:6,]
 }
 \seealso{
 plot.chemSigSelect, FPM, chemSig

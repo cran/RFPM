@@ -18,7 +18,7 @@
 #' @importFrom grDevices colorRampPalette 
 #' @examples
 #' x <- rnorm(n = 100)
-#' cols <- colorGradient(x = x, colors = c("red", "white", "blue"))
+#' cols <- colorGradient(x, c("red", "white", "blue"))
 #' plot(x, col = cols)
 #' @export
 colorGradient <- function(x, 
@@ -26,6 +26,6 @@ colorGradient <- function(x,
                           colsteps = 100,
                           na.rm = TRUE,
                           ...) {
-    cols <- colorRampPalette(colors, ...)(colsteps)[findInterval(x, seq(min(x, na.rm), max(x, na.rm), length.out = colsteps))]    
+    cols <- colorRampPalette(colors, ...)(colsteps)[findInterval(x, seq(min(x, na.rm = na.rm), max(x, na.rm = na.rm), length.out = colsteps))]    
   return(cols)
 }## end code

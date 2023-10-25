@@ -8,7 +8,10 @@ chemSig(
   data,
   paramList,
   testType = NULL,
-  alpha = 0.05,
+  alpha.var = 0.05,
+  alpha.norm = 0.05,
+  alpha.test = 0.05,
+  alpha = NULL,
   alternative = "less",
   var.alternative = "two.sided",
   var.equal = NULL,
@@ -23,7 +26,13 @@ chemSig(
 
 \item{testType}{character string; whether to run parametric or non-parametric tests (default = \code{NULL}). See Details for more information.}
 
-\item{alpha}{numeric value between 0 and 1; type-I error rate for hypothesis testing (default = \code{0.05})}
+\item{alpha.var}{numeric value between 0 and 1; type-I error rate for testing equal variance assumption (default = \code{0.05})}
+
+\item{alpha.norm}{numeric value between 0 and 1; type-I error rate for testing normality assumption (default = \code{0.05})}
+
+\item{alpha.test}{numeric value between 0 and 1; type-I error rate for testing differences between Hit and No-hit datasets (default = \code{0.05})}
+
+\item{alpha}{numeric value between 0 and 1; type-I error rate that, if supplied by the user, will be applied to all tests (default = \code{NULL})}
 
 \item{alternative}{alternative hypothesis type for equality of central tendency (default = \code{"less"})}
 
@@ -44,7 +53,7 @@ among toxic samples by comparison to non-toxic samples
 }
 \details{
 \code{chemSig} is called within \code{FPM} via \code{chemSigSelect}, which generates a subset of chemicals to
-pass into the floating percentil model algorithm. \code{chemSig} only returns a logical vector describing which parameters in \code{paramList} should be selected for
+pass into the floating percentile model algorithm. \code{chemSig} only returns a logical vector describing which parameters in \code{paramList} should be selected for
 benchmark development based on having significantly higher concentrations when \code{Hit == TRUE} than when \code{Hit == FALSE}.
 The user has the ability to manipulate several of the parameters of the selection algorithm, or they can allow \code{chemSig} to test for
 assumptions and use appropriate hypothesis tests based on those results. By default, \code{chemSig} will use \code{shapiro.test} to
@@ -56,7 +65,8 @@ The \code{testType} argument can be one of \code{p}, \code{P}, \code{param}, \co
 test types or \code{non}, \code{Non}, \code{np}, \code{NP}, \code{nonparam}, \code{Nonparam}, \code{non-param}, \code{Non-param}, \code{nonparametric}, \code{Nonparametric},
 \code{non-parametric}, \code{Non-parametric}, or \code{Non-Parametric}.
 
-Only a single \code{alpha} level can be supplied; it is currently applied to all tests.
+The user has the option of providing a single \code{alpha} level to apply to all tests (e.g., 0.05) or to specify test-specific alpha levels via \code{alpha.var}, \code{alpha.norm}, and \code{alpha.test}.
+Note that \code{FPM} by default uses \code{alpha = 0.05} for all tests.
 
 While \code{alternative} and \code{var.alternative} can be adjusted, we strongly recommend that they not be changed from the
 default values. For example, changing \code{alternative} from \code{"less"} (default) to \code{"two.sided"} would result in
@@ -68,10 +78,11 @@ assumption of equal variance relates to a \code{"two.sided"} argument, therefore
 \code{ExcelMode} assumes \code{testType = "parametric"}, \code{var.equal = TRUE}, \code{alternative = "less"}, and \code{alpha = 0.1}. In
 actuality, the Excel-based tool uses a one-way ANOVA test to compare two levels of \code{Hit}, which is equivalent to a t-test so long as alpha is adjusted to 0.1.
 Thus, \code{testType}, \code{alternative}, \code{var.alternative}, and \code{var.equal} are overridden when \code{ExcelMode = TRUE}.
-This argument was included for those interested in using 'RFPM' as an alternative to the Excel-based calculator tool to obtain identical benchmark results.
+This argument was included for those interested in using 'RFPM' as an alternative to the Excel-based calculator tool to obtain identical benchmark results. Note that
+the Excel FPM tool also includes other features which may complicate comparability such as outlier analysis. Outlier analysis is not conducted by RFPM.
 }
 \examples{
 paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-chemSig(data = h.tristate, paramList = paramList, testType = "nonparametric")
-chemSig(data = h.tristate, paramList = paramList, testType = "parametric")
+chemSig(h.tristate, paramList, "nonparametric")
+chemSig(h.tristate, paramList, "parametric")
 }

@@ -7,13 +7,14 @@
 cvFPM(
   data,
   paramList,
-  FN_crit = seq(0.1, 0.9, 0.05),
+  FN_crit = seq(0.1, 0.9, by = 0.05),
+  alpha.test = seq(0.05, 0.5, by = 0.05),
   k = 5,
-  seed = NULL,
+  seed = 1,
   plot = TRUE,
-  tryStop = 10,
-  simplify = TRUE,
-  which = c(1, 2),
+  which = c(1, 2, 3, 4),
+  colors = heat.colors(10),
+  colsteps = 100,
   ...
 )
 }
@@ -24,58 +25,58 @@ cvFPM(
 
 \item{FN_crit}{numeric vector of values between 0 and 1 indicating false negative threshold for floating percentile model benchmark selection (default = \code{seq(0.1, 0.9, 0.05)})}
 
-\item{k}{numeric value >1 indicating the number of k-folds to include in cross-validation (default = \code{5})}
+\item{alpha.test}{numeric vector of values between 0 and 1 indicating type-I error rate for chemical selection (default = \code{seq(0.05, 0.5, by = 0.05)})}
 
-\item{seed}{random seed to set for reproducible results (default = \code{NULL}, i.e., no seed)}
+\item{k}{integer with length = 1 and value > 1 indicating how many folds to include in k-folds type cross-validation method (default = \code{5})}
+
+\item{seed}{integer with length = 1 indicating the random seed to set for assigning k classes for k-folds cross-validation (default = \code{1})}
 
 \item{plot}{whether to plot the output of \code{cvFPM} (default = \code{TRUE})}
 
-\item{tryStop}{specifies the number of times the cross-validation algorithm will try to run before ending (see Details; default = \code{10})}
+\item{which}{numeric or character indicating which type of plot to generate (see Details; default = \code{c(1, 2, 3, 4)})}
 
-\item{simplify}{logical; whether to return just the optimized \code{FN_crit} value or more detailed diagnostic information}
+\item{colors}{values recognizible as colors to be passed to \code{colorRampPalette} (via \code{colorGradient}) to generate a palette for plotting (default = \code{heat.colors(10)})}
 
-\item{which}{numeric or character indicating which type of plot to generate (see Details; default = \code{c(1, 2)})}
+\item{colsteps}{integer; number of discrete steps to interpolate colors in \code{colorGradient} (default = \code{100})}
 
 \item{...}{additional arguments passed to \code{chemSig} and \code{FPM}}
 }
 \value{
-list with 1 or 3 objects (depending on whether or not \code{simplify = TRUE});
-these include 1) \code{optim_FN}, the optimized \code{FN_crit} value; 2) \code{CV_OR}, the detailed breakdown of overall
-reliability values for each \code{FN_crit} value; and 3) \code{CV_FPM}, floating percentile model benchark statistics based on
-all cross-validation runs for each \code{FN_crit}
+data.frame of metric output, base R graphical output
 }
 \description{
-Use k-folds cross-validation method to calculate parameter inputs that optimize benchmark performance
-while attempting to account for out-of-sample error
+Use leave-one-out (LOO) or k-folds cross-validation methods to calculate parameter inputs that optimize benchmark performance
+while attempting to account for out-of-sample uncertainty
 }
 \details{
-\code{cvFPM} allows users to "tune" \code{FN_crit} argument in \code{FPM}. This is achieved by splitting the empirical dataset into "test" and "training" subsets,
-calculating benchmarks for the training set, and then calculating the benchmarks' prediction errors using the test set.
-This process is repeated several times (the number depending on the size of \code{k} relative to the sample size), and the results are summarized statistically.
-Lastly, this process is repeated for each \code{FN_crit} value specified by the user, resulting in comparable
-statistics for each \code{FN_crit}. The output in the console indicates which \code{FN_crit} value resulted in the consistently optimal benchmarks
-(meaning highest overall reliability or most balanced errors).
+\code{cvFPM} allows users to "tune" the \code{FN_crit} and \code{alpha.test} arguments used by \code{FPM} (via \code{chemSig}). This is achieved by splitting the empirical dataset into "test" and "training" subsets,
+calculating benchmarks for the training set, and then evaluating the benchmarks' ability to predict Hits in the out-of-sample test set. The output of \code{cvFPM} is similar to \code{optimFPM}: optimal \code{FN_crit} and \code{alpha.test} inputs
+based on several classification metrics (see \code{?optimFPM} for more details). The key difference between \code{cvFPM} and \code{optimFPM} is that \code{cvFPM} attempts to account for
+out-of-sample uncertainty, whereas \code{optimFPM} is specific (and potentially overly specific) to the full FPM dataset. Because the primary use of FPM SQBs will be to predict
+toxicity in sediment samples where toxicity is not measured, the FPM should be parameterized in a way that best accounts for out-of-sample uncertainty. In other words, while FPM
+generates classification metrics like "overall reliability" for SQBs, they are unlikely to achieve the expected reliability when applied to new samples. This is an inherent limitation of SQBs,
+which the FPM cannot fully address but that \code{cvFPM} considers.
+
+Two cross-validation methods are available, controlled through the \code{k} argument. If the user specifies \code{k = NULL} or \code{k = nrow(data)}, then leave-one-out (LOO) is used.
+LOO is computationally intensive but is better suited to small datasets.
+Other values of \code{k} (e.g., the default \code{k = 5}) will result in applying a k-folds cross-validation method, which uses larger test subsets (and smaller training sets),
+evaluates fewer scenarios, and greatly improves runtime for large datasets. The \code{seed} argument can be used to establish a consistent result; if \code{is.null(seed)}, the result will vary based on randomization.
+Allowing for randomization may be desireable to understand between-run variability in \code{cvFPM} output caused by re-sampling of training/test sets.
+
 By setting \code{plot = TRUE} (the default), the outcome of cross-validation can be visualized over the range of \code{FN_crit} values considered. Visualizing the results
-can inform the user about variability in the cross-validation process, ranges of potentially reasonable \code{FN_crit} values, etc.
+can inform the user about variability in the cross-validation process, ranges of potentially reasonable \code{FN_crit} values, etc. Graphical output depends on
+whether many \code{FN_crit} and/or many \code{alpha.test} are evaluated, with line plots or heat plots alternately generated.
 
-\code{cvFPM} does not currently support optimization of the \code{alpha} parameter of \code{FPM};
-\code{optimFPM} allows the user to optimize \code{alpha} but only using the empirical data (not through cross-validation).
+IMPORTANT: \code{cvFPM} is not in itself optimized for runtime - running \code{cvFPM} can take a long time
 
-Errors may be encountered by setting the value of \code{k} too high or too low, resulting in an inability of \code{cvFPM}
-to generate meaningful subsets for testing and floating percentile model calculations. Groups for subsetting are roughly
-evenly applied within the cross-validation method, so it is reasonable to expect that \code{ceiling(nrow(data)/k)} is the number of
-samples in any given test subset, with \code{nrow(data) - ceiling(nrow(data)/k)} being the size of the training subset. If a large number
-of samples still generates an error, consider increasing the \code{tryStop} value and rerunning \code{cvFPM}. The easiest way
-to avoid this type of error is to keep \code{k} low relative to \code{nrow(data)} (bearing in mind that \code{k} must be >1).
-
-The \code{which} argument can be used to specify which of the two plots should be generated when \code{plot = TRUE}. These plots include
-the optimization results based on the overall reliability metric or the balanced rate of false positives and false negatives. Inputs
-to \code{which} are, by default, \code{c(1, 2)}, but flexible character inputs also can be used, for example \code{which = "OR"} or \code{which = "balanced"}.
+The \code{which} argument can be used to specify which of the metric-specific plots should be generated when \code{plot = TRUE}. Inputs
+to \code{which} are, by default, \code{c(1, 2, 3, 4)}.
 }
 \examples{
 paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-cvFPM(data = h.tristate, paramList = paramList, FN_crit = seq(0.1, 0.9, 0.1), which = "OR")
+par(mfrow = c(2,2))
+cvFPM(h.tristate, paramList, seq(0.1, 0.9, 0.1), 0.05)
 }
 \seealso{
-chemSig, FPM, seq
+chemSig, FPM, optimFPM
 }

@@ -1,230 +1,372 @@
 #' Cross-Validation Optimization of the Floating Percentile Model
 #' 
-#' Use k-folds cross-validation method to calculate parameter inputs that optimize benchmark performance
-#' while attempting to account for out-of-sample error
-#' 
+#' Use leave-one-out (LOO) or k-folds cross-validation methods to calculate parameter inputs that optimize benchmark performance
+#' while attempting to account for out-of-sample uncertainty
 #' 
 #' @param  data data.frame containing, at a minimum, chemical concentrations as columns and a logical \code{Hit} column classifying toxicity
 #' @param  paramList character vector of column names of chemical concentration variables in \code{data}
 #' @param  FN_crit numeric vector of values between 0 and 1 indicating false negative threshold for floating percentile model benchmark selection (default = \code{seq(0.1, 0.9, 0.05)})
-#' @param  k numeric value >1 indicating the number of k-folds to include in cross-validation (default = \code{5})
-#' @param  seed random seed to set for reproducible results (default = \code{NULL}, i.e., no seed)
+#' @param  alpha.test numeric vector of values between 0 and 1 indicating type-I error rate for chemical selection (default = \code{seq(0.05, 0.5, by = 0.05)})
+#' @param  k integer with length = 1 and value > 1 indicating how many folds to include in k-folds type cross-validation method (default = \code{5})
+#' @param  seed integer with length = 1 indicating the random seed to set for assigning k classes for k-folds cross-validation (default = \code{1})
 #' @param  plot whether to plot the output of \code{cvFPM} (default = \code{TRUE})
-#' @param  tryStop specifies the number of times the cross-validation algorithm will try to run before ending (see Details; default = \code{10})
-#' @param  simplify logical; whether to return just the optimized \code{FN_crit} value or more detailed diagnostic information
-#' @param  which numeric or character indicating which type of plot to generate (see Details; default = \code{c(1, 2)})
+#' @param  which numeric or character indicating which type of plot to generate (see Details; default = \code{c(1, 2, 3, 4)})
+#' @param  colors values recognizible as colors to be passed to \code{colorRampPalette} (via \code{colorGradient}) to generate a palette for plotting (default = \code{heat.colors(10)})
+#' @param  colsteps integer; number of discrete steps to interpolate colors in \code{colorGradient} (default = \code{100})
 #' @param  ... additional arguments passed to \code{chemSig} and \code{FPM}
 #' @details 
-#' \code{cvFPM} allows users to "tune" \code{FN_crit} argument in \code{FPM}. This is achieved by splitting the empirical dataset into "test" and "training" subsets,
-#' calculating benchmarks for the training set, and then calculating the benchmarks' prediction errors using the test set.
-#' This process is repeated several times (the number depending on the size of \code{k} relative to the sample size), and the results are summarized statistically. 
-#' Lastly, this process is repeated for each \code{FN_crit} value specified by the user, resulting in comparable
-#' statistics for each \code{FN_crit}. The output in the console indicates which \code{FN_crit} value resulted in the consistently optimal benchmarks 
-#' (meaning highest overall reliability or most balanced errors). 
+#' \code{cvFPM} allows users to "tune" the \code{FN_crit} and \code{alpha.test} arguments used by \code{FPM} (via \code{chemSig}). This is achieved by splitting the empirical dataset into "test" and "training" subsets,
+#' calculating benchmarks for the training set, and then evaluating the benchmarks' ability to predict Hits in the out-of-sample test set. The output of \code{cvFPM} is similar to \code{optimFPM}: optimal \code{FN_crit} and \code{alpha.test} inputs
+#' based on several classification metrics (see \code{?optimFPM} for more details). The key difference between \code{cvFPM} and \code{optimFPM} is that \code{cvFPM} attempts to account for
+#' out-of-sample uncertainty, whereas \code{optimFPM} is specific (and potentially overly specific) to the full FPM dataset. Because the primary use of FPM SQBs will be to predict
+#' toxicity in sediment samples where toxicity is not measured, the FPM should be parameterized in a way that best accounts for out-of-sample uncertainty. In other words, while FPM
+#' generates classification metrics like "overall reliability" for SQBs, they are unlikely to achieve the expected reliability when applied to new samples. This is an inherent limitation of SQBs,
+#' which the FPM cannot fully address but that \code{cvFPM} considers.
+#' 
+#' Two cross-validation methods are available, controlled through the \code{k} argument. If the user specifies \code{k = NULL} or \code{k = nrow(data)}, then leave-one-out (LOO) is used. 
+#' LOO is computationally intensive but is better suited to small datasets.
+#' Other values of \code{k} (e.g., the default \code{k = 5}) will result in applying a k-folds cross-validation method, which uses larger test subsets (and smaller training sets), 
+#' evaluates fewer scenarios, and greatly improves runtime for large datasets. The \code{seed} argument can be used to establish a consistent result; if \code{is.null(seed)}, the result will vary based on randomization.
+#' Allowing for randomization may be desireable to understand between-run variability in \code{cvFPM} output caused by re-sampling of training/test sets.
+#' 
 #' By setting \code{plot = TRUE} (the default), the outcome of cross-validation can be visualized over the range of \code{FN_crit} values considered. Visualizing the results
-#' can inform the user about variability in the cross-validation process, ranges of potentially reasonable \code{FN_crit} values, etc.
+#' can inform the user about variability in the cross-validation process, ranges of potentially reasonable \code{FN_crit} values, etc. Graphical output depends on
+#' whether many \code{FN_crit} and/or many \code{alpha.test} are evaluated, with line plots or heat plots alternately generated.
 #' 
-#' \code{cvFPM} does not currently support optimization of the \code{alpha} parameter of \code{FPM}; 
-#' \code{optimFPM} allows the user to optimize \code{alpha} but only using the empirical data (not through cross-validation).
+#' IMPORTANT: \code{cvFPM} is not in itself optimized for runtime - running \code{cvFPM} can take a long time
 #' 
-#' Errors may be encountered by setting the value of \code{k} too high or too low, resulting in an inability of \code{cvFPM} 
-#' to generate meaningful subsets for testing and floating percentile model calculations. Groups for subsetting are roughly
-#' evenly applied within the cross-validation method, so it is reasonable to expect that \code{ceiling(nrow(data)/k)} is the number of
-#' samples in any given test subset, with \code{nrow(data) - ceiling(nrow(data)/k)} being the size of the training subset. If a large number
-#' of samples still generates an error, consider increasing the \code{tryStop} value and rerunning \code{cvFPM}. The easiest way
-#' to avoid this type of error is to keep \code{k} low relative to \code{nrow(data)} (bearing in mind that \code{k} must be >1).
+#' The \code{which} argument can be used to specify which of the metric-specific plots should be generated when \code{plot = TRUE}. Inputs
+#' to \code{which} are, by default, \code{c(1, 2, 3, 4)}.
 #' 
-#' The \code{which} argument can be used to specify which of the two plots should be generated when \code{plot = TRUE}. These plots include
-#' the optimization results based on the overall reliability metric or the balanced rate of false positives and false negatives. Inputs
-#' to \code{which} are, by default, \code{c(1, 2)}, but flexible character inputs also can be used, for example \code{which = "OR"} or \code{which = "balanced"}.
-#' 
-#' @seealso chemSig, FPM, seq
-#' @return list with 1 or 3 objects (depending on whether or not \code{simplify = TRUE});
-#' these include 1) \code{optim_FN}, the optimized \code{FN_crit} value; 2) \code{CV_OR}, the detailed breakdown of overall
-#' reliability values for each \code{FN_crit} value; and 3) \code{CV_FPM}, floating percentile model benchark statistics based on
-#' all cross-validation runs for each \code{FN_crit}
+#' @seealso chemSig, FPM, optimFPM
+#' @return data.frame of metric output, base R graphical output
 #' @importFrom stats median
 #' @importFrom graphics par
 #' @examples
 #' paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-#' cvFPM(data = h.tristate, paramList = paramList, FN_crit = seq(0.1, 0.9, 0.1), which = "OR")
+#' par(mfrow = c(2,2))
+#' cvFPM(h.tristate, paramList, seq(0.1, 0.9, 0.1), 0.05)
 #' @export
+
 cvFPM <- function(data,
                   paramList,
-                  FN_crit = seq(0.1, 0.9, 0.05),
+                  FN_crit = seq(0.1, 0.9, by = 0.05),
+                  alpha.test = seq(0.05, 0.5, by = 0.05),
                   k = 5,
-                  seed = NULL,
+                  seed = 1,
                   plot = TRUE,
-                  tryStop = 10,
-                  simplify = TRUE,
-                  which = c(1, 2),
-                   ...){
-    if(any(FN_crit > 1)){
-        stop("FN_crit must include numbers between 0 and 1")
+                  which = c(1, 2, 3, 4),
+                  colors = heat.colors(10),
+                  colsteps = 100,
+                  ...){
+    
+    if(any(FN_crit >= 1 | FN_crit <= 0)){
+        stop("FN_crit must only include values between 0 and 1")
     }
-    if(k <= 0){
-        stop("k must be a positive number between 1 and nrow(data)")
+    if(any(alpha.test >= 1 | alpha.test <= 0)){
+        stop("alpha.test must only include values between 0 and 1")
     }
-    if(!is.null(seed) & !is.numeric(seed)){
-        stop("seed must be a positive number")
+    if(nrow(data[data$Hit,])<=3 | nrow(data[!data$Hit,])<=3){
+        stop("data must contain more than 3 Hit and 3 No-Hit samples")
     }
-
+    if(!is.null(k)){
+        if(k <= 1) {stop("k must be a single value >1 and <=nrow(data)")}
+    }
+    
+    ## Initilize inputs/outputs
+    grid <- expand.grid(FN_crit, alpha.test)
+    out <- list()
     if(!is.null(seed)){
         set.seed(seed)
     }
-    
-    hitRatio <- mean(data$Hit)
-    foldN <- ceiling(nrow(data)/k)
-    
-    foldNHit <- ceiling(hitRatio * foldN)
-    foldNNoHit <- ceiling((1 - hitRatio) * foldN)
-    
+    ## Attempt to speed function by default using subsampling + LOO - blends k-folds and LOO
+    if(!is.null(k)) {
+        hitPortion <- ceiling(mean(data$Hit) * (nrow(data) / k)) ## per-fold sample size for Hits
+        nohitPortion <- floor(mean(!data$Hit) * (nrow(data) / k)) ## per-fold samlpe size for No-Hits
+        
+        if(hitPortion < 3 | nohitPortion < 3) {stop("k-folds method not possible - Hit or No-hit N < 3; reduce k and try again")}
+        
+        data2 <- split(data, data$Hit)
+        kHit <- rep(1:k, each = hitPortion)
+        if(length(kHit) < nrow(data2[["TRUE"]])) {
+            kHit <- c(kHit, sample(1:k, nrow(data2[["TRUE"]]) - length(kHit), replace = F))
+        }
+        data2[["TRUE"]]$k <- NA
+        data2[["TRUE"]]$k <- sample(kHit, size = nrow(data2[["TRUE"]]), replace = F)
 
-    data$fold <- NA 
-    
-    tryFold <- 0
-    repeat{
-        tryFold <- tryFold + 1
-        data[data$Hit,]$fold <- sample(rep(1:k, each = foldNHit), 
-                                       size = nrow(data[data$Hit,]), replace = FALSE)
-        data[!data$Hit,]$fold <- sample(rep(1:k, each = foldNNoHit), 
-                                       size = nrow(data[!data$Hit,]), replace = FALSE)
-        
-        check <- table(data$fold, data$Hit)
-        
-        if(!any(apply(check, 2, function(x) {
-                any(x == 0)})) & 
-           nrow(check) == k){
-            break
+        kNoHit <- rep(1:k, each = nohitPortion)
+        if(length(kNoHit) < nrow(data2[["FALSE"]])) {
+            kNoHit <- c(kNoHit, sample(1:k, nrow(data2[["FALSE"]]) - length(kNoHit), replace = F))
         }
+        data2[["FALSE"]]$k <- NA
+        data2[["FALSE"]]$k <- sample(kNoHit, size = nrow(data2[["FALSE"]]), replace = F)
         
-        if(tryFold == tryStop){
-            stop("Reduce k and try again")
-        }
+        data2 <- rbind(data2[["TRUE"]], data2[["FALSE"]])
+    } else {
+        k <- nrow(data2) # k is never null - LOO: k = nrow(data)
+        data2 <- data
+        data2$k <- 1:nrow(data2)
     }
     
-    suppressMessages(expr = {
-        paramListFix <- paramList[chemSig(data = data, paramList = paramList, ...)]
+    ## Results for full dataset - for plotting to see loss of info from out-of-sample uncertainty
+    fpm.full <- do.call(rbind, apply(grid, 1, function(i){
+        FPM(data, paramList = paramList, FN_crit = i[[1]], alpha.test = i[[2]], ...)[["FPM"]][,c("sens", "spec", "OR", "FM", "MCC")]
+    }))
+    fpm.full$sensSpecRatio <- signif(apply(fpm.full[,c("sens", "spec")], 1, function(x) min(x)/max(x)), 3)
+    fpm.full <- fpm.full[, c("sensSpecRatio", "OR", "FM", "MCC")]
+    
+    out <- apply(grid, 1, function(i){
+        out.i <- lapply(1:k, function(j) {
+            train <- data2[!data2$k == j,]
+            test <- data2[data2$k == j,]
+            if(sum(train$Hit)<3 | sum(!train$Hit) <3) stop("Error in subset - Hit or No-hit N<3; reduce k and try again")
 
+            fpm.j <- FPM(train, paramList = paramList, FN_crit = i[[1]], alpha.test = i[[2]], ...)[["FPM"]]
+            n.j <- names(fpm.j)[names(fpm.j) %in% paramList]
+            
+            Hit_result <- data.frame(
+                pHit = logical(nrow(test)),
+                tHit = logical(nrow(test)),
+                compHit = logical(nrow(test))
+            )
+
+            # determinig if Hit classification is correct or not
+            Hit_result[, "pHit"] <- predict.FPM(fpm.j, newdata = test)# predicted Hit class
+            Hit_result[, "tHit"] <- test$Hit # actual Hit class
+            Hit_result[, "compHit"] <- Hit_result[, "tHit"] == Hit_result[, "pHit"] # correct Hit class?
+            
+            TP <- sum(Hit_result[,"pHit"] & Hit_result[,"tHit"])
+            TN <- sum(!Hit_result[,"pHit"] & !Hit_result[,"tHit"])
+            FP <- sum(Hit_result[,"pHit"] & !Hit_result[,"tHit"])
+            FN <- sum(!Hit_result[,"pHit"] & Hit_result[,"tHit"])
+            
+            sens <- TP/(TP + FN)
+            spec <- TN/(TN + FP)
+            sensSpecRatio <- min(c(sens, spec))/max(c(sens, spec))
+            if(is.nan(sensSpecRatio)) sensSpecRatio <- 0 ## allowing for NAs to be input as zero values - worst possible outcome
+            ppr <- TP/(TP + FP)
+            OR <- mean(Hit_result[,"compHit"])
+            FM <- exp(mean(log(c(sens, ppr))))
+            if(is.nan(FM)) FM <- 0 ## allowing for NAs to be input as zero values - worst possible outcome
+            MCC <- (TP * TN - FP * FN)/sqrt((TP+FP) * (TP+FN) * (TN+FP) * (TN+FN))
+            # not allowing this to be zero or -1 to avoid confusion in interpretion
+            return(data.frame(FN_crit = i[[1]], alpha.test = i[[2]], sensSpecRatio, OR, FM, MCC))
+        })
+        k_runs <- do.call(rbind, out.i)
+        return(
+            with(k_runs,
+                data.frame(
+                    FN_crit = unique(FN_crit),
+                    alpha.test = unique(alpha.test),
+                    sensSpecRatio.min = min(sensSpecRatio, na.rm = T),
+                    sensSpecRatio.max = max(sensSpecRatio, na.rm = T),
+                    sensSpecRatio.med = median(sensSpecRatio, na.rm = T),
+                    sensSpecRatio.mean = mean(sensSpecRatio, na.rm = T),
+                    OR.min = min(OR, na.rm = T),
+                    OR.max = max(OR, na.rm = T),
+                    OR.med = median(OR, na.rm = T),
+                    OR.mean = mean(OR, na.rm = T),
+                    FM.min = min(FM, na.rm = T),
+                    FM.max = max(FM, na.rm = T),
+                    FM.med = median(FM, na.rm = T),
+                    FM.mean = mean(FM, na.rm = T),
+                    MCC.min = min(MCC, na.rm = T),
+                    MCC.max = max(MCC, na.rm = T),
+                    MCC.med = median(MCC, na.rm = T),
+                    MCC.mean = mean(MCC, na.rm = T)
+                )
+            )
+        )
     })
     
-    sims <- list()
-    fpms <- list()
-    for(FN in 1:length(FN_crit)){
-        initial <- FPM(data, paramList = paramList, FN_crit = FN_crit[FN], ...)[["FPM"]]
-
-        OR.k <- numeric()
-        Balance.k <- numeric()
-        fpms[[FN]] <- list()
-        
-        for(k in 1:k){
-            kTrain <- data[data$fold != k,]
-            kTest <- data[data$fold == k,]
-            kTestHit <- kTest[kTest$Hit, ]
-            kTestNoHit <- kTest[!kTest$Hit, ]
-            
-            fpm.k <- FPM(kTrain, paramList = paramListFix,
-                FN_crit = FN_crit[FN], paramOverride = TRUE, ...)[["FPM"]][paramListFix]
-
-            fpms[[FN]][[k]] <- fpm.k
-            
-            TP.k <- apply(as.matrix(apply(as.matrix(fpm.k, ncol = length(paramListFix)), 1, function(x) {
-                        apply(as.matrix(kTestHit[, paramListFix], ncol = length(paramListFix)), 1, function(y) {
-                            any(y > x)})})), 2, sum)
-            
-            TN.k <- apply(as.matrix(apply(as.matrix(fpm.k, ncol = length(paramListFix)), 1, function(x) {
-                        apply(as.matrix(kTestNoHit[, paramListFix]), 1, function(y) {
-                            all(y <= x)})})), 2, sum)
-            
-            FP.k <- apply(as.matrix(apply(as.matrix(fpm.k, ncol = length(paramListFix)), 1, function(x) {
-                        apply(as.matrix(kTestNoHit[, paramListFix]), 1, function(y) {
-                            any(y > x)})})), 2, sum)
-            FN.k <- apply(as.matrix(apply(as.matrix(fpm.k, ncol = length(paramListFix)), 1, function(x) {
-                        apply(as.matrix(kTestHit[, paramListFix]), 1, function(y) {
-                            all(y <= x)})})), 2, sum)
-            
-            Balance.k <- c(Balance.k, abs(FP.k - FN.k))/nrow(kTest)
-            OR.k <- c(OR.k, (TP.k + TN.k)/nrow(kTest))
-        }
-        
-        fpms[[FN]] <- do.call(rbind, list(mean = apply(do.call(rbind, fpms[[FN]]), 2, mean),
-                            median = apply(do.call(rbind, fpms[[FN]]), 2, median),
-                            min = apply(do.call(rbind, fpms[[FN]]), 2, min),
-                            max = apply(do.call(rbind, fpms[[FN]]), 2, max)))
-        names(fpms)[FN] <- paste0("FN_", FN_crit[FN])
-        sims[[FN]] <- data.frame(Bal.i = signif(abs(initial[, "FP"] - initial[, "FN"])/sum(initial[,c("TP", "TN", "FP", "FN")]), 2),
-                                 Bal.kmin = signif(min(Balance.k), 2),
-                                 Bal.kmax = signif(max(Balance.k), 2),
-                                 Bal.kmean = signif(mean(Balance.k), 2),
-                                 Bal.kmed = signif(median(Balance.k), 2),
-                                 OR.i = signif(initial[, "OR"], 2),
-                                 OR.kmin = signif(min(OR.k), 2),
-                                 OR.kmax = signif(max(OR.k), 2),
-                                 OR.kmean = signif(mean(OR.k), 2),
-                                 OR.kmed = signif(median(OR.k), 2))
-    }
-    out <- data.frame(FN_crit = FN_crit, do.call(rbind, sims))
-
-    out_select <- c(
-        balance_FN.FP = out$FN_crit[min(which.min(rowSums(out[, c("Bal.kmin", 
-                                                            "Bal.kmax", 
-                                                            "Bal.kmean", 
-                                                            "Bal.kmed")])))],
-        max_OR = out$FN_crit[min(which.max(rowSums(out[, c("OR.kmin", 
-                                                            "OR.kmax", 
-                                                            "OR.kmean", 
-                                                            "OR.kmed")])))]
-        )
+    out <- do.call(rbind, out); rownames(out) <- NULL
+    
+    # use for plotting
+    metrics <- c("sensSpecRatio", "OR", "FM", "MCC")
+    Summary <- do.call(c, lapply(metrics, function(m){
+        tmp <- rowSums(out[,grep(x = names(out), pattern = m)], na.rm = T)
+        min(which(tmp == max(tmp, na.rm = T)), na.rm = T)
+        }))
+    names(grid) <- c("FN_crit", "alpha.test")
+    pickArgs <- grid[Summary, 1:2]
+    rownames(pickArgs) <- c("sensSpecRatio", "OR", "FM", "MCC")
+    
+    ## ------------------------------------------------------
+    ## Plotting
     
     if(plot){
-        # prevent cvFPM from overwriting user parameters
-        oldpar <- graphics::par(no.readonly = TRUE)
-        on.exit(par(oldpar))
-        
-        if(!any(which %in% c(1,2)) & 
-           !any(which %in% c("OR", "or", "reliability", "Reliability", "rel", "Rel",
-                             "Bal", "bal", "balance", "balanced", "Balance", "Balanced"))){
-            stop("which argument must equal 1, 2, or c(1,2)"
-            )}
-        
-        if(any(c(1, "OR", "or", "reliability", "Reliability", "rel", "Rel") %in% which)){
-            with(out, expr = {
-             par(oma = c(0, 0, 3, 0))
-             plot(x = FN_crit, y = OR.i, type = "l", col = 1, lwd = 2,
-                  xlab = "False Negative Limit", ylab = "Overall Reliability",
-                  ylim = c(min(OR.kmin), max(OR.kmax)))
-             abline(v = out_select["max_OR"], col = "darkorange", lty = 2, lwd = 2)
-             lines(x = FN_crit, y = OR.kmean, col = 2)
-             lines(x = FN_crit, y = OR.kmed, col = 4)
-             lines(x = FN_crit, y = OR.kmin, col = 4, lty = 3)
-             lines(x = FN_crit, y = OR.kmax, col = 4, lty = 3)
-             legend("top", inset = -0.15, bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
-                    lty = c(1,1,1,3,2), col = c(1,2,4,4,"darkorange"), lwd = c(2,1,1,1,2),
-                    legend = c("Actual OR", "Mean test OR", "Median test OR", "Min/Max test OR", "Optimal FN"))
-            })
+        if(!any(which %in% c(1, 2, 3, 4))){
+            stop("which argument must equal or include 1, 2, 3, and/or 4")
         }
-        if(any(c(2, "Bal", "bal", "balance", "balanced", "Balance", "Balanced") %in% which)){
-            with(out, expr = {
-             par(oma = c(0, 0, 3, 0))
-             plot(x = FN_crit, y = Bal.i, type = "l", col = 1, lwd = 2,
-                  xlab = "False Negative Limit", ylab = "Balance between FP and FN",
-                  ylim = c(min(Bal.kmin), max(Bal.kmax)))
-             abline(h = 0, lty = 3, col = "gray")
-             abline(v = out_select["balance_FN.FP"], col = "darkorange", lty = 2, lwd = 2)
-             lines(x = FN_crit, y = Bal.kmean, col = 2)
-             lines(x = FN_crit, y = Bal.kmed, col = 4)
-             lines(x = FN_crit, y = Bal.kmin, col = 4, lty = 3)
-             lines(x = FN_crit, y = Bal.kmax, col = 4, lty = 3)
-             legend("top", inset = -0.15, bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
-                    lty = c(1,1,1,3,2), col = c(1,2,4,4,"darkorange"), lwd = c(2,1,1,1,2),
-                    legend = c("Actual balance", "Mean test balance", "Median test balance", "Min/Max test balance", "Optimized FN_crit"))
-            })
-        }
-    }
+        
+        if(length(FN_crit) > 1 & length(alpha.test) == 1){
+            if(1 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "sensSpecRatio")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,1], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "False Negative Limit", ylab = "Sensitivity/Specificity Ratio",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[1, "FN_crit"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,1], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,1], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = fpm.full[,1], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, 
+                        x.intersp = 0.25, xpd = TRUE, lty = c(1, 1, 3, 2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20", "black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
     
-    if(simplify){
-        return(list(optim_FN = out_select))
-    } else {
-        return(list(CV_Stat = out, CV_FPM = fpms, optim_FN = out_select))
+            if(2 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "OR")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,1], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "False Negative Limit", ylab = "Overall Reliability",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[2, "FN_crit"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,1], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,1], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = fpm.full[,2], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+            
+            if(3 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "FM")]
+                names(outData) <- c("min", "max", "median", "mean")
+                    
+                 plot(x = grid[,1], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "False Negative Limit", ylab = "Fowlkes-Mallows Index",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[3, "FN_crit"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,1], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,1], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = fpm.full[,3], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black","black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+            
+            
+            if(4 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "MCC")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,1], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "False Negative Limit", ylab = "Matthew's Correlation Coefficient",
+                      ylim = c(-0.5,1))
+                 abline(v = pickArgs[4, "FN_crit"], col = "black", lty = 2, lwd = 1)
+                 abline(h = 0, col = "lightgray", lty=3)
+                 lines(x = grid[,1], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,1], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,1], y = fpm.full[,4], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+        } else if(length(FN_crit) == 1 & length(alpha.test) > 1){
+            if(1 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "sensSpecRatio")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,2], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "Test Alpha", ylab = "Sensitivity/Specificity Ratio",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[1, "alpha.test"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,2], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,2], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = fpm.full[,1], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+    
+            if(2 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "OR")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,2], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "Test Alpha", ylab = "Overall Reliability",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[2, "alpha.test"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,2], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,2], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = fpm.full[,2], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+            
+            if(3 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "FM")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = grid[,2], y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "Test Alpha", ylab = "Fowlkes-Mallows Index",
+                      ylim = c(0,1))
+                 abline(v = pickArgs[3, "alpha.test"], col = "black", lty = 2, lwd = 1)
+                 lines(x = grid[,2], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,2], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = fpm.full[,3], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+            
+            
+            if(4 %in% which){
+                outData <- out[,grep(x = names(out), pattern = "MCC")]
+                names(outData) <- c("min", "max", "median", "mean")
+                
+                 plot(x = alpha.test, y = outData$median, type = "l", col = "dodgerblue3", lwd = 1,
+                      xlab = "Test Alpha", ylab = "Matthew's Correlation Coefficient",
+                      ylim = c(-0.5, 1) )
+                 abline(v = pickArgs[4, "alpha.test"], col = "black", lty = 2, lwd = 1)
+                 abline(h = 0, col = "lightgray", lty=3)
+                 lines(x = grid[,2], y = outData$mean, col = "darkorange2")
+                 lines(x = grid[,2], y = outData$min, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = outData$max, col = "gray20", lty = 3)
+                 lines(x = grid[,2], y = fpm.full[,4], col = "black", lwd = 1.5)
+                 legend("bottom", bg = "white", ncol = 2, cex = 0.8, x.intersp = 0.25, xpd = TRUE,
+                        lty = c(1,1,3,2), 
+                        col = c("dodgerblue3", "darkorange2", "gray20","black", "black"),
+                        legend = c("Median", "Mean", "Min/Max", "Optimized value", "All-sample result"))
+            }
+        } else {
+            heads <- c("Sensitivity / Specificity Ratio", "Overall Reliability", 
+                       "Fowlkes-Mallows Index", "Matthew's Correlation Coefficient")
+            
+            for(i in which){
+                outData <- out[,grep(x = names(out), pattern = c("sensSpecRatio", "OR", "FM", "MCC")[i])]
+                names(outData) <- c("min", "max", "median", "mean")                
+                
+                cols <- colorGradient(x = 1 - outData$mean, colors = colors, colsteps = colsteps, na.rm = T)
+                
+                plot(grid[,1], grid[,2], pch = 15, cex = 3, col = cols,
+                     xlab = "False Negative Limit", ylab = "Test Alpha", main = heads[i])
+                points(pickArgs$FN_crit[i], pickArgs$alpha.test[i], pch = 0, cex = 4, col = "black")
+                mtext(side = 3, text = paste0("Mean range: ", 
+                                              signif(min(outData$mean), 2), "-", 
+                                              signif(max(outData$mean), 2),"; ",
+                                              "optimized mean: ", signif(outData$mean[Summary[i]], 2)
+                                              ))
+            }
+        }
     }
-}## end code
+    return(pickArgs)
+}# end code

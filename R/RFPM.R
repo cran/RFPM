@@ -29,14 +29,8 @@
 #' Instead, we believe the results generated for different false negative limits should be independently generated rather than dependent on prior model runs.
 #' Thus, \code{FPM} allows for multiple false negative limits to be input in a seqeuential but independent manner, resulting in a data.frame of benchmarks with one 
 #' row per false negative limit. In R terminology, \code{FPM} has been vectorized.
-#' 3. Functions were developed to optimize the overall reliability of FPM sediment quality benchmarks. Optimization can either maximize the overall
-#' reliability of the benchmarks, or it can reduce the difference between false positive and false negative predictions of toxicity. The latter
-#' might be useful as a compromize between over- and under-conservatism of benchmarks. 
-#' The functions are \code{optimFPM} and \code{cvFPM}. Both functions can be used
-#' to optimize the false negative limit, and \code{optimFPM} can also be used to optimize the type-I error rate (alpha), which drives the chemical selection
-#' aspect of \code{FPM}. \code{optimFPM} and \code{cvFPM} also provide graphical representations of the optimization process,
-#' which helps to provide context for false negative limit and alpha selections.
-#' 4. New functions are also available to quickly calculate chemical "variable importance" statistics using \code{chemVI}. These statistics
+#' 3. An optimization function called \code{optimFPM} was developed to optimize the overall reliability of FPM sediment quality benchmarks. Different optimization metrics are provided, and a weight of evidence should be considered when selecting inputs.
+#' 4. A function was developed to quickly calculate chemical "variable importance" statistics using \code{chemVI}. These statistics
 #' can inform the user about the influence of specific chemicals over the set of FPM benchmarks and, for example,
 #' whether certain benchmarks can be ignored without a significant loss of predictive ability.
 #' @return bibentry

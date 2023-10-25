@@ -18,20 +18,20 @@
 #' @return list of two data.frames (\code{"sig"} and \code{"nonsig"}), \code{chemSigSelect} class object
 #' @examples
 #' paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn")
-#' chemSigSelect(data = h.tristate, paramList = paramList)$sig[1:6,]
-#' chemSigSelect(data = h.tristate, paramList = paramList, testType = "p")$sig[1:6,]
+#' chemSigSelect(h.tristate, paramList)$sig[1:6,]
+#' chemSigSelect(h.tristate, paramList, testType = "p")$sig[1:6,]
 #' @export
 chemSigSelect <- function(data, 
                           paramList, 
                           plot = FALSE, 
                           ...){
-    outP <- paramList[chemSig(data = data, paramList = paramList, ...)]
+    sig <- chemSig(data = data, paramList = paramList, ...)
+    outP <- names(sig)[sig]
     outP2 <- paramList[!paramList %in% outP]
     
     out <- data.frame(data[, c(outP, "Hit")])
 
     attr(out, "nChem") <- length(outP)
-     attr(out, "Endpoint")<- unique(data$dataset)
     if(attr(out, "nChem") == 0) {
         stop("No significant chemicals were selected")
     }

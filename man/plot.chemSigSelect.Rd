@@ -42,7 +42,8 @@ Moreover, many of the plotting arguments are specified by \code{plot.chemSigSele
 adjusted by the user. These include but are not limited to parameters like \code{col} and \code{lwd}.
 }
 \examples{
-x <- chemSigSelect(data = h.tristate, paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn"))
+x <- chemSigSelect(data = h.tristate, 
+    paramList = c("Cd", "Cu", "Fe", "Mn", "Ni", "Pb", "Zn"))
 plot(x, type = "boxplot")
 }
 \seealso{
